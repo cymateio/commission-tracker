@@ -1,0 +1,1294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Commission Tracker</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f1117; --surface: #1a1d2e; --surface2: #252840; --border: #2e3150;
+      --text: #e8eaf6; --text-muted: #8b90b8; --accent: #6c63ff; --accent-light: #8b85ff;
+      --green: #4ade80; --red: #f87171; --yellow: #fbbf24; --blue: #60a5fa;
+    }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
+    .app { max-width: 1160px; margin: 0 auto; padding: 32px 20px; }
+
+    .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; flex-wrap: wrap; gap: 16px; }
+    .header h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; }
+    .header h1 span { color: var(--accent-light); }
+    .header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+    .tabs { display: flex; gap: 4px; background: var(--surface2); border-radius: 10px; padding: 4px; margin-bottom: 28px; width: fit-content; }
+    .tab { padding: 8px 18px; border-radius: 7px; cursor: pointer; font-size: 0.88rem; font-weight: 500; color: var(--text-muted); background: none; border: none; transition: all 0.15s; }
+    .tab.active { background: var(--accent); color: #fff; }
+    .tab:hover:not(.active) { color: var(--text); }
+
+    .month-nav { display: flex; align-items: center; gap: 10px; }
+    .month-nav button { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 0.9rem; transition: background 0.15s; }
+    .month-nav button:hover { background: var(--accent); border-color: var(--accent); }
+    .month-label { font-size: 1rem; font-weight: 600; min-width: 140px; text-align: center; }
+
+    .btn-action { display: inline-flex; align-items: center; gap: 6px; background: var(--surface2); border: 1px solid var(--border); color: var(--text-muted); padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; transition: all 0.15s; white-space: nowrap; }
+    .btn-action:hover { border-color: var(--accent); color: var(--accent-light); }
+    .btn-action.sync { border-color: var(--accent); color: var(--accent-light); }
+    .btn-action.sync:hover { background: var(--accent); color: #fff; }
+    .btn-action:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 16px; margin-bottom: 32px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+    .card .label { font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+    .card .value { font-size: 1.5rem; font-weight: 700; }
+    .card .value.green { color: var(--green); }
+    .card .value.red { color: var(--red); }
+    .card .value.yellow { color: var(--yellow); }
+    .card .value.blue { color: var(--blue); }
+
+    .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; }
+    thead { background: var(--surface2); }
+    th { padding: 14px 16px; text-align: left; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+    td { padding: 14px 16px; border-top: 1px solid var(--border); vertical-align: middle; }
+    tr:hover td { background: rgba(108,99,255,0.04); }
+
+    .vendor-name { font-weight: 600; font-size: 0.95rem; }
+    .vendor-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
+    .amount { font-variant-numeric: tabular-nums; font-size: 0.95rem; }
+    .amount.expected { color: var(--text-muted); }
+    .amount.received { color: var(--text); font-weight: 600; }
+    .diff.positive { color: var(--green); font-size: 0.82rem; }
+    .diff.negative { color: var(--red); font-size: 0.82rem; }
+
+    .status { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 20px; font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
+    .status.paid    { background: rgba(74,222,128,0.12); color: var(--green); }
+    .status.missing { background: rgba(248,113,113,0.12); color: var(--red); }
+    .status.wrong   { background: rgba(251,191,36,0.12);  color: var(--yellow); }
+    .status.pending { background: rgba(96,165,250,0.12);  color: var(--blue); }
+
+    .btn-edit { background: none; border: 1px solid var(--border); color: var(--text-muted); padding: 5px 11px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; transition: all 0.15s; }
+    .btn-edit:hover { border-color: var(--accent); color: var(--accent-light); }
+    .date-cell { font-size: 0.85rem; color: var(--text-muted); }
+    .notes-cell { font-size: 0.8rem; color: var(--text-muted); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .scraped-badge { font-size: 0.7rem; color: var(--accent-light); background: rgba(108,99,255,0.12); border-radius: 4px; padding: 2px 6px; margin-left: 6px; vertical-align: middle; }
+
+    .alerts { margin-bottom: 24px; display: flex; flex-direction: column; gap: 8px; }
+    .alert-item { display: flex; align-items: center; gap: 10px; border-radius: 10px; padding: 12px 16px; font-size: 0.88rem; }
+    .alert-item.warn   { background: rgba(251,191,36,0.08);  border: 1px solid rgba(251,191,36,0.25);  color: var(--yellow); }
+    .alert-item.danger { background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.25); color: var(--red); }
+
+    .chart-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+    .chart-title { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 20px; }
+    .bar-chart { display: flex; align-items: flex-end; gap: 10px; height: 160px; }
+    .bar-group { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; }
+    .bar-pair { display: flex; gap: 3px; align-items: flex-end; height: 130px; }
+    .bar { border-radius: 4px 4px 0 0; min-height: 3px; width: 14px; transition: height 0.3s; }
+    .bar.exp { background: var(--surface2); border: 1px solid var(--border); }
+    .bar.rec { background: var(--accent); }
+    .bar-month { font-size: 0.72rem; color: var(--text-muted); text-align: center; }
+    .chart-legend { display: flex; gap: 16px; margin-top: 12px; }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--text-muted); }
+    .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+
+    .trend-table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow-x: auto; }
+    .trend-table { min-width: 700px; }
+    .trend-table th { font-size: 0.75rem; }
+    .trend-table td { font-size: 0.85rem; }
+    .trend-total { font-weight: 700; }
+    .trend-bar-bg { background: var(--surface2); border-radius: 4px; height: 6px; overflow: hidden; width: 100px; }
+    .trend-bar-fill { height: 6px; border-radius: 4px; background: var(--accent); }
+
+    /* Annual report */
+    .year-header { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+    .year-nav button { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 7px 13px; border-radius: 8px; cursor: pointer; font-size: 0.9rem; }
+    .year-nav button:hover { background: var(--accent); border-color: var(--accent); }
+    .year-label { font-size: 1.1rem; font-weight: 700; min-width: 60px; text-align: center; }
+    .year-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 28px; }
+    .year-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+    .year-card .label { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+    .year-card .value { font-size: 1.3rem; font-weight: 700; }
+
+    .annual-table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow-x: auto; margin-bottom: 24px; }
+    .annual-table { min-width: 900px; }
+    .annual-table th { font-size: 0.72rem; padding: 12px 14px; }
+    .annual-table td { font-size: 0.85rem; padding: 12px 14px; }
+    .month-col { font-weight: 600; white-space: nowrap; }
+    .check-ok   { color: var(--green); font-size: 0.8rem; font-weight: 600; }
+    .check-fail { color: var(--red);   font-size: 0.8rem; font-weight: 600; }
+    .check-disc { color: var(--yellow);font-size: 0.8rem; font-weight: 600; }
+    .check-pend { color: var(--text-muted); font-size: 0.8rem; }
+    .vendor-mini-grid { display: flex; gap: 4px; flex-wrap: wrap; }
+    .vendor-chip { font-size: 0.7rem; padding: 2px 7px; border-radius: 12px; font-weight: 600; white-space: nowrap; }
+    .vendor-chip.paid    { background: rgba(74,222,128,0.12); color: var(--green); }
+    .vendor-chip.missing { background: rgba(248,113,113,0.12); color: var(--red); }
+    .vendor-chip.wrong   { background: rgba(251,191,36,0.12);  color: var(--yellow); }
+    .vendor-chip.pending { background: rgba(96,165,250,0.08);  color: var(--text-muted); }
+
+    .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
+    .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 28px; width: 100%; max-width: 460px; }
+    .modal h2 { font-size: 1.1rem; margin-bottom: 24px; }
+    .form-row { margin-bottom: 18px; }
+    .form-row label { display: block; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .form-row input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); padding: 10px 12px; font-size: 0.95rem; outline: none; transition: border-color 0.15s; }
+    .form-row input:focus { border-color: var(--accent); }
+    .form-row input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.7); }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
+    .btn-primary { background: var(--accent); border: none; color: #fff; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 0.9rem; font-weight: 600; }
+    .btn-primary:hover { background: var(--accent-light); }
+    .btn-secondary { background: none; border: 1px solid var(--border); color: var(--text-muted); padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 0.9rem; }
+    .btn-secondary:hover { border-color: var(--text-muted); color: var(--text); }
+
+    .reminder-section { margin-bottom: 20px; }
+    .reminder-section h3 { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .vendor-reminder-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); gap: 12px; }
+    .vendor-reminder-row:last-child { border-bottom: none; }
+    .reminder-vendor { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; font-weight: 500; min-width: 90px; }
+    .reminder-day { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 6px 10px; font-size: 0.88rem; outline: none; width: 60px; text-align: center; }
+    .reminder-day:focus { border-color: var(--accent); }
+    .reminder-label { font-size: 0.8rem; color: var(--text-muted); }
+
+    .toast { position: fixed; bottom: 28px; right: 28px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 20px; font-size: 0.88rem; z-index: 200; box-shadow: 0 8px 32px rgba(0,0,0,0.4); animation: slideUp 0.2s ease; }
+    .toast.success { border-color: rgba(74,222,128,0.4); }
+    .toast.error   { border-color: rgba(248,113,113,0.4); color: var(--red); }
+    @keyframes slideUp { from { opacity:0; transform: translateY(12px); } to { opacity:1; transform:translateY(0); } }
+
+    .loading { display: flex; align-items: center; justify-content: center; min-height: 300px; color: var(--text-muted); font-size: 0.95rem; gap: 10px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
+
+    @media (max-width: 700px) {
+      th:nth-child(5), td:nth-child(5), th:nth-child(7), td:nth-child(7) { display: none; }
+    }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+window.addEventListener('error', function(e){
+  var r=document.getElementById('root');
+  if(r&&!r.children.length) r.innerHTML='<pre style="color:#f87171;padding:20px;white-space:pre-wrap;font-size:12px">'+((e.error&&e.error.stack)||e.message)+'</pre>';
+});
+</script>
+<script type="text/babel" data-presets="react">
+const { useState, useMemo, useEffect, useRef } = React;
+
+// ── Supabase config ───────────────────────────────────────────
+const SYNC_URL_DEFAULT = 'https://script.google.com/a/macros/cymate.io/s/AKfycbxNw8uKZB8DYJdN9W8Gy7-WtDMaZUto-i78zOpyuK_WiPpRNPxqm3MSViDZRtwegoDU/exec';
+const SB_URL = 'https://eciesfegyvsdsqunkeyf.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVjaWVzZmVneXZzZHNxdW5rZXlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyMDI5NTcsImV4cCI6MjA5Njc3ODk1N30.W_7M_Zchym2EQG3XsEZaDmRi1JbqdEsdrYe3jt406p0';
+// ── Auth (Supabase Auth via REST) ─────────────────────────────
+let authToken    = localStorage.getItem('sb_access_token')  || null;
+let refreshToken = localStorage.getItem('sb_refresh_token') || null;
+
+function setSession(s) {
+  authToken    = s && s.access_token  ? s.access_token  : null;
+  refreshToken = s && s.refresh_token ? s.refresh_token : null;
+  if (authToken) {
+    localStorage.setItem('sb_access_token', authToken);
+    localStorage.setItem('sb_refresh_token', refreshToken || '');
+  } else {
+    localStorage.removeItem('sb_access_token');
+    localStorage.removeItem('sb_refresh_token');
+  }
+}
+function isAuthed() { return !!authToken; }
+function authBearer() { return authToken || SB_KEY; }
+function currentUserId() {
+  if (!authToken) return null;
+  try { return JSON.parse(atob(authToken.split('.')[1])).sub || null; } catch (e) { return null; }
+}
+
+async function authSignIn(email, password) {
+  const res = await fetch(`${SB_URL}/auth/v1/token?grant_type=password`, {
+    method: 'POST', headers: { 'apikey': SB_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  const j = await res.json();
+  if (!res.ok) throw new Error(j.error_description || j.msg || j.error || 'Login failed');
+  setSession(j);
+  return j;
+}
+async function authSignUp(email, password) {
+  const res = await fetch(`${SB_URL}/auth/v1/signup`, {
+    method: 'POST', headers: { 'apikey': SB_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  const j = await res.json();
+  if (!res.ok) throw new Error(j.error_description || j.msg || j.error || 'Sign up failed');
+  if (j.access_token) setSession(j);
+  return j;
+}
+async function authRefresh() {
+  if (!refreshToken) return false;
+  const res = await fetch(`${SB_URL}/auth/v1/token?grant_type=refresh_token`, {
+    method: 'POST', headers: { 'apikey': SB_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  });
+  if (!res.ok) { setSession(null); return false; }
+  setSession(await res.json());
+  return true;
+}
+function authSignOut() { setSession(null); }
+
+async function authUpdatePassword(newPassword) {
+  const res = await fetch(`${SB_URL}/auth/v1/user`, {
+    method: 'PUT',
+    headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${authBearer()}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: newPassword }),
+  });
+  const j = await res.json();
+  if (!res.ok) throw new Error(j.error_description || j.msg || j.error || 'Could not update password');
+  return j;
+}
+
+function sbHeaders() {
+  return { 'apikey': SB_KEY, 'Authorization': `Bearer ${authBearer()}`, 'Content-Type': 'application/json' };
+}
+
+async function sbGet(table, params = '') {
+  const url = `${SB_URL}/rest/v1/${table}?select=*${params}`;
+  let res = await fetch(url, { headers: sbHeaders() });
+  if (res.status === 401 && await authRefresh()) res = await fetch(url, { headers: sbHeaders() });
+  if (!res.ok) throw new Error(`DB ${res.status}`);
+  return res.json();
+}
+
+async function sbUpsert(table, row) {
+  const opts = () => ({ method: 'POST', headers: { ...sbHeaders(), 'Prefer': 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(row) });
+  let res = await fetch(`${SB_URL}/rest/v1/${table}`, opts());
+  if (res.status === 401 && await authRefresh()) res = await fetch(`${SB_URL}/rest/v1/${table}`, opts());
+  if (!res.ok) throw new Error(`DB ${res.status}`);
+}
+
+// ── Helpers ───────────────────────────────────────────────────
+const VENDORS = [
+  { id: 'zapmail',   name: 'Zapmail',   color: '#818cf8' },
+  { id: 'smartlead', name: 'Smartlead', color: '#34d399' },
+  { id: 'icypeas',   name: 'Icypeas',   color: '#fb923c' },
+  { id: 'heyreach',  name: 'Heyreach',  color: '#f472b6' },
+  { id: 'inboxkit',  name: 'Inboxkit',  color: '#38bdf8' },
+  { id: 'leadmagic', name: 'LeadMagic', color: '#a78bfa' },
+];
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function monthKey(y, m) { return `${y}-${String(m+1).padStart(2,'0')}`; }
+
+function fmtCurrency(v) {
+  if (v === '' || v == null) return '—';
+  return '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtDate(d) {
+  if (!d) return '—';
+  const [,m,day] = d.split('-');
+  return `${MONTHS[parseInt(m)-1]} ${parseInt(day)}`;
+}
+function fmtRel(iso) {
+  if (!iso) return '—';
+  const diff = Date.now() - new Date(iso).getTime();
+  if (isNaN(diff)) return '—';
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+function getStatus(e) {
+  if (!e || (!e.expected && !e.received)) return 'pending';
+  if (!e.received || e.received === '') return 'missing';
+  const exp = parseFloat(e.expected) || 0;
+  const rec = parseFloat(e.received) || 0;
+  if (exp === 0 && rec > 0) return 'paid';
+  if (Math.abs(exp - rec) < 0.01) return 'paid';
+  if (rec > 0 && exp > 0) return 'wrong';
+  return 'missing';
+}
+const STATUS_LABELS = { paid: '✓ Paid', missing: '✗ Missing', wrong: '⚠ Discrepancy', pending: '· Pending' };
+
+// rows → { [monthKey]: { [vendorId]: entry } }
+function rowsToData(rows) {
+  const d = {};
+  rows.forEach(r => {
+    const mk = r.month_key || r.month;          // support both column names
+    const vid = r.vendor_id || r.vendor;
+    if (!mk || !vid) return;
+    if (!d[mk]) d[mk] = {};
+    d[mk][vid] = {
+      expected:     r.expected     != null ? String(r.expected)     : '',
+      received:     r.received     != null ? String(r.received)     : '',
+      payment_date: r.payment_date || '',
+      notes:        r.notes        || '',
+      updated_at:   r.updated_at   || null,
+      _scraped:     r.scraped_at   || null,
+    };
+  });
+  return d;
+}
+
+function exportCSV(data, year, month) {
+  const mKey = monthKey(year, month);
+  const label = new Date(year, month, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  const entries = data[mKey] || {};
+  const rows = [['Month','Vendor','Expected ($)','Received ($)','Difference ($)','Payment Date','Status','Notes']];
+  VENDORS.forEach(v => {
+    const e = entries[v.id] || {};
+    const exp = e.expected !== '' && e.expected != null ? parseFloat(e.expected) : '';
+    const rec = e.received !== '' && e.received != null ? parseFloat(e.received) : '';
+    const diff = exp !== '' && rec !== '' ? (rec - exp).toFixed(2) : '';
+    rows.push([label, v.name, exp, rec, diff, e.payment_date || '', getStatus(e), e.notes || '']);
+  });
+  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })),
+    download: `commissions-${mKey}.csv`,
+  });
+  a.click();
+}
+
+// ── Modals ────────────────────────────────────────────────────
+function LogPaymentModal({ vendor, monthLabel, entry, onSave, onClose, saving }) {
+  const [form, setForm] = useState({
+    received:     entry?.received     ?? '',
+    payment_date: entry?.payment_date ?? (new Date().toISOString().split('T')[0]),
+    notes:        entry?.notes        ?? '',
+  });
+  const h = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
+  const exp = entry?.expected ? parseFloat(entry.expected) : null;
+  return (
+    <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal">
+        <h2>Log Bank Receipt — <span style={{color: vendor.color}}>{vendor.name}</span></h2>
+        <p style={{fontSize:'0.83rem',color:'var(--text-muted)',marginBottom:'20px',lineHeight:'1.5'}}>
+          {monthLabel} · Enter the amount that actually hit your bank account.
+        </p>
+        {exp !== null && (
+          <div style={{background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:'8px',padding:'10px 14px',marginBottom:'18px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <span style={{fontSize:'0.8rem',color:'var(--text-muted)'}}>Expected from dashboard</span>
+            <span style={{fontWeight:700,color:'var(--blue)',fontSize:'1rem'}}>${parseFloat(exp).toFixed(2)}</span>
+          </div>
+        )}
+        <div className="form-row"><label>Amount Received in Bank ($)</label>
+          <input name="received" type="number" min="0" step="0.01" placeholder="0.00" value={form.received} onChange={h} autoFocus /></div>
+        <div className="form-row"><label>Date Received</label>
+          <input name="payment_date" type="date" value={form.payment_date} onChange={h} /></div>
+        <div className="form-row"><label>Notes (optional)</label>
+          <input name="notes" type="text" placeholder="e.g. Wise transfer, ref #123" value={form.notes} onChange={h} /></div>
+        <div className="modal-actions">
+          <button className="btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" onClick={() => onSave({...form, expected: entry?.expected ?? ''})} disabled={saving || !form.received}>
+            {saving ? 'Saving…' : 'Confirm Receipt'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EntryModal({ vendor, monthLabel, entry, onSave, onClose, saving }) {
+  const [form, setForm] = useState({
+    expected:     entry?.expected     ?? '',
+    received:     entry?.received     ?? '',
+    payment_date: entry?.payment_date ?? '',
+    notes:        entry?.notes        ?? '',
+  });
+  const h = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
+  return (
+    <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal">
+        <h2><span style={{color: vendor.color}}>{vendor.name}</span> — {monthLabel}</h2>
+        <div className="form-row">
+          <label>Expected Commission ($) <span style={{fontSize:'0.72rem',color:'var(--accent-light)'}}>the amount your vendor dashboard shows</span></label>
+          <input name="expected" type="number" min="0" step="0.01" placeholder="0.00" value={form.expected} onChange={h} />
+        </div>
+        <div className="form-row"><label>Received Amount ($)</label>
+          <input name="received" type="number" min="0" step="0.01" placeholder="0.00" value={form.received} onChange={h} /></div>
+        <div className="form-row"><label>Payment Date</label>
+          <input name="payment_date" type="date" value={form.payment_date} onChange={h} /></div>
+        <div className="form-row"><label>Notes</label>
+          <input name="notes" type="text" placeholder="Optional notes..." value={form.notes} onChange={h} /></div>
+        <div className="modal-actions">
+          <button className="btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" onClick={() => onSave(form)} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RemindersModal({ reminders, onSave, onClose }) {
+  const [local, setLocal] = useState({ ...reminders });
+  const [saving, setSaving] = useState(false);
+  async function handleSave() {
+    setSaving(true);
+    await onSave(local);
+    setSaving(false);
+  }
+  return (
+    <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal">
+        <h2>Payment Day Reminders</h2>
+        <div className="reminder-section">
+          <h3>Expected payment day per vendor</h3>
+          {VENDORS.map(v => (
+            <div className="vendor-reminder-row" key={v.id}>
+              <div className="reminder-vendor"><span className="vendor-dot" style={{background:v.color}} />{v.name}</div>
+              <input className="reminder-day" type="number" min="1" max="31" placeholder="—"
+                value={local[v.id] || ''} onChange={e => setLocal(r => ({ ...r, [v.id]: e.target.value }))} />
+              <span className="reminder-label">day of month</span>
+            </div>
+          ))}
+        </div>
+        <p style={{fontSize:'0.78rem',color:'var(--text-muted)',marginBottom:'8px'}}>
+          Alerts appear when a payment day passes and the commission isn't marked Paid.
+        </p>
+        <div className="modal-actions">
+          <button className="btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChangePasswordModal({ onClose }) {
+  const [pw, setPw]   = useState('');
+  const [pw2, setPw2] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr]   = useState('');
+  const [done, setDone] = useState(false);
+
+  async function save() {
+    setErr('');
+    if (pw.length < 6) { setErr('Password must be at least 6 characters.'); return; }
+    if (pw !== pw2)    { setErr('Passwords do not match.'); return; }
+    setBusy(true);
+    try { await authUpdatePassword(pw); setDone(true); }
+    catch (e) { setErr(e.message || 'Could not update password'); }
+    setBusy(false);
+  }
+
+  return (
+    <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={{maxWidth:'420px'}}>
+        <h2>Change password</h2>
+        {done ? (
+          <>
+            <p style={{fontSize:'0.9rem',color:'var(--green)',marginBottom:'20px'}}>✓ Password updated. Use it next time you log in.</p>
+            <div className="modal-actions"><button className="btn-primary" onClick={onClose}>Done</button></div>
+          </>
+        ) : (
+          <>
+            <p style={{fontSize:'0.82rem',color:'var(--text-muted)',marginBottom:'18px',lineHeight:1.5}}>
+              Set a new private password for <strong style={{color:'var(--text)'}}>admin@cymate.io</strong>.
+            </p>
+            <div className="form-row"><label>New password</label>
+              <input type="password" autoComplete="new-password" value={pw} onChange={e=>setPw(e.target.value)} autoFocus /></div>
+            <div className="form-row"><label>Confirm new password</label>
+              <input type="password" autoComplete="new-password" value={pw2} onChange={e=>setPw2(e.target.value)} /></div>
+            {err && <div style={{color:'var(--red)',fontSize:'0.82rem',marginBottom:'12px'}}>{err}</div>}
+            <div className="modal-actions">
+              <button className="btn-secondary" onClick={onClose}>Cancel</button>
+              <button className="btn-primary" onClick={save} disabled={busy || !pw || !pw2}>{busy ? 'Saving…' : 'Update password'}</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Charts ────────────────────────────────────────────────────
+function BarChart({ data }) {
+  const months = useMemo(() => {
+    const now = new Date();
+    return Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+      const key = monthKey(d.getFullYear(), d.getMonth());
+      const entries = data[key] || {};
+      let exp = 0, rec = 0;
+      VENDORS.forEach(v => {
+        if (entries[v.id]?.expected) exp += parseFloat(entries[v.id].expected) || 0;
+        if (entries[v.id]?.received) rec += parseFloat(entries[v.id].received) || 0;
+      });
+      return { label: MONTHS[d.getMonth()], exp, rec };
+    });
+  }, [data]);
+  const maxVal = Math.max(...months.flatMap(m => [m.exp, m.rec]), 1);
+  return (
+    <div className="chart-wrap">
+      <div className="chart-title">Expected vs Received — Last 6 Months</div>
+      <div className="bar-chart">
+        {months.map((m, i) => (
+          <div className="bar-group" key={i}>
+            <div className="bar-pair">
+              <div className="bar exp" style={{height:`${Math.max(3,(m.exp/maxVal)*120)}px`}} title={`Expected: ${fmtCurrency(m.exp)}`} />
+              <div className="bar rec" style={{height:`${Math.max(3,(m.rec/maxVal)*120)}px`}} title={`Received: ${fmtCurrency(m.rec)}`} />
+            </div>
+            <div className="bar-month">{m.label}</div>
+          </div>
+        ))}
+      </div>
+      <div className="chart-legend">
+        <div className="legend-item"><div className="legend-dot" style={{background:'var(--surface2)',border:'1px solid var(--border)'}} /> Expected</div>
+        <div className="legend-item"><div className="legend-dot" style={{background:'var(--accent)'}} /> Received</div>
+      </div>
+    </div>
+  );
+}
+
+function TrendsView({ data }) {
+  const months = useMemo(() => {
+    const now = new Date();
+    return Array.from({ length: 12 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - (11 - i), 1);
+      const key = monthKey(d.getFullYear(), d.getMonth());
+      const entries = data[key] || {};
+      let exp = 0, rec = 0, paid = 0, missing = 0;
+      VENDORS.forEach(v => {
+        const e = entries[v.id]; const s = getStatus(e);
+        if (e?.expected) exp += parseFloat(e.expected) || 0;
+        if (e?.received) rec += parseFloat(e.received) || 0;
+        if (s === 'paid') paid++;
+        if (s === 'missing') missing++;
+      });
+      return { label: `${MONTHS[d.getMonth()]} ${d.getFullYear()}`, key, exp, rec, paid, missing, hasData: exp > 0 || rec > 0 };
+    });
+  }, [data]);
+  const maxRec = Math.max(...months.map(m => m.rec), 1);
+  return (
+    <div>
+      <BarChart data={data} />
+      <div className="trend-table-wrap">
+        <table className="trend-table">
+          <thead><tr><th>Month</th><th>Expected</th><th>Received</th><th>Diff</th><th>Paid</th><th>Missing</th><th>Volume</th></tr></thead>
+          <tbody>
+            {months.map(m => (
+              <tr key={m.key} style={{opacity: m.hasData ? 1 : 0.4}}>
+                <td style={{fontWeight:500}}>{m.label}</td>
+                <td className="amount expected">{m.exp ? fmtCurrency(m.exp) : '—'}</td>
+                <td className="amount received trend-total">{m.rec ? fmtCurrency(m.rec) : '—'}</td>
+                <td>{m.exp && m.rec ? <span className={`diff ${m.rec>=m.exp?'positive':'negative'}`}>{m.rec>=m.exp?'+':''}{fmtCurrency(m.rec-m.exp)}</span> : <span style={{color:'var(--border)'}}>—</span>}</td>
+                <td><span style={{color:'var(--green)'}}>{m.paid||'—'}</span></td>
+                <td><span style={{color:m.missing?'var(--red)':'var(--text-muted)'}}>{m.missing||'—'}</span></td>
+                <td><div className="trend-bar-bg"><div className="trend-bar-fill" style={{width:`${(m.rec/maxRec)*100}%`}} /></div></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── Vendors reference ─────────────────────────────────────────
+// capture: how RECEIVED gets in. expSource: how EXPECTED (dashboard figure) gets in.
+const VENDOR_META = {
+  zapmail:   { platform: 'Custom portal',   url: 'https://affiliates.zapmail.ai/payouts',           payer: 'Rapidify Labs Inc. · Wise',  capture: 'auto',   expSource: 'Run /zapmail-check (browser)' },
+  smartlead: { platform: 'Rewardful',       url: 'https://smartproducts.getrewardful.com/payouts',  payer: '521 code · PayPal',          capture: 'auto',   expSource: 'Payout = commission (auto)' },
+  heyreach:  { platform: 'Tolt',            url: 'https://heyreach.tolt.io',                        payer: 'Tolt, Inc. · PayPal',        capture: 'auto',   expSource: 'Payout = commission (auto)' },
+  icypeas:   { platform: 'FirstPromoter',   url: 'https://icypeas.firstpromoter.com',               payer: 'Not received yet',           capture: 'manual', expSource: 'Enter from dashboard' },
+  inboxkit:  { platform: 'Custom portal',   url: 'https://studio.inboxkit.com',                     payer: 'Not received yet',           capture: 'manual', expSource: 'Enter from dashboard' },
+  leadmagic: { platform: 'Dub.co Partners', url: 'https://partners.dub.co/programs/leadmagic',      payer: 'Not received yet',           capture: 'manual', expSource: 'Enter from dashboard' },
+};
+
+function VendorsTab({ data, year, onPaste }) {
+  const rows = useMemo(() => VENDORS.map(v => {
+    let exp = 0, rec = 0, confirmed = 0, lastDate = null;
+    for (let i = 0; i < 12; i++) {
+      const e = (data[monthKey(year, i)] || {})[v.id];
+      if (!e) continue;
+      const ev = e.expected !== '' && e.expected != null ? parseFloat(e.expected) : null;
+      const rv = e.received !== '' && e.received != null ? parseFloat(e.received) : null;
+      if (ev) exp += ev;
+      if (rv) rec += rv;
+      if (getStatus(e) === 'paid') confirmed++;
+      if (e.payment_date && (!lastDate || e.payment_date > lastDate)) lastDate = e.payment_date;
+    }
+    return { ...v, meta: VENDOR_META[v.id], exp, rec, confirmed, lastDate };
+  }), [data, year]);
+
+  return (
+    <div>
+      <p style={{color:'var(--text-muted)',fontSize:'0.88rem',lineHeight:'1.6',maxWidth:'680px',marginBottom:'22px'}}>
+        Your source-of-truth checklist. For each vendor, open its dashboard and confirm the numbers there match
+        what's stored here. <strong style={{color:'var(--text)'}}>Auto</strong> vendors are captured from your PayPal/Wise
+        emails automatically; <strong style={{color:'var(--text)'}}>Manual</strong> ones you enter from the dashboard via <em>Edit</em>.
+      </p>
+
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(320px,1fr))',gap:'16px'}}>
+        {rows.map(v => {
+          const auto = v.meta.capture === 'auto';
+          return (
+            <div key={v.id} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'12px',padding:'20px'}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'14px'}}>
+                <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
+                  <span style={{width:'10px',height:'10px',borderRadius:'50%',background:v.color,display:'inline-block'}} />
+                  <span style={{fontWeight:700,fontSize:'1rem'}}>{v.name}</span>
+                </div>
+                <span style={{fontSize:'0.7rem',fontWeight:700,padding:'3px 9px',borderRadius:'12px',
+                  background: auto ? 'rgba(74,222,128,0.12)' : 'rgba(251,191,36,0.12)',
+                  color: auto ? 'var(--green)' : 'var(--yellow)'}}>
+                  {auto ? '⚡ Auto' : '✎ Manual'}
+                </span>
+              </div>
+
+              <div style={{fontSize:'0.78rem',color:'var(--text-muted)',lineHeight:'1.7',marginBottom:'14px'}}>
+                <div><span style={{color:'var(--text)'}}>{v.meta.platform}</span></div>
+                <div>Pays as: <span style={{color:'var(--text)'}}>{v.meta.payer}</span></div>
+                <div>Expected source: <span style={{color:'var(--text)'}}>{v.meta.expSource}</span></div>
+              </div>
+
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'8px',background:'var(--surface2)',borderRadius:'8px',padding:'12px',marginBottom:'14px'}}>
+                <div><div style={{fontSize:'0.68rem',color:'var(--text-muted)',textTransform:'uppercase'}}>Expected</div><div style={{fontWeight:700,fontSize:'0.92rem',color:'var(--blue)'}}>{v.exp?fmtCurrency(v.exp):'—'}</div></div>
+                <div><div style={{fontSize:'0.68rem',color:'var(--text-muted)',textTransform:'uppercase'}}>Received</div><div style={{fontWeight:700,fontSize:'0.92rem',color:'var(--green)'}}>{v.rec?fmtCurrency(v.rec):'—'}</div></div>
+                <div><div style={{fontSize:'0.68rem',color:'var(--text-muted)',textTransform:'uppercase'}}>Confirmed</div><div style={{fontWeight:700,fontSize:'0.92rem'}}>{v.confirmed}/12</div></div>
+              </div>
+
+              <a href={v.meta.url} target="_blank" rel="noopener noreferrer"
+                 className="btn-edit" style={{display:'block',textAlign:'center',textDecoration:'none'}}>
+                Open dashboard to verify ↗
+              </a>
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{marginTop:'28px',background:'var(--surface)',border:'1px solid var(--accent)',borderRadius:'10px',padding:'18px 20px'}}>
+        <div style={{fontWeight:600,marginBottom:'10px',fontSize:'0.95rem'}}>Pull data from a vendor dashboard</div>
+        <div style={{fontSize:'0.85rem',color:'var(--text)',lineHeight:1.6,marginBottom:'10px'}}>
+          <strong style={{color:'var(--accent-light)'}}>Easiest:</strong> open the vendor's Payouts page, select the table and copy it (⌘C / Ctrl+C), then:
+        </div>
+        <button onClick={onPaste} style={{background:'var(--accent)',border:'none',color:'#fff',padding:'10px 18px',borderRadius:'8px',fontWeight:600,fontSize:'0.9rem',cursor:'pointer',marginBottom:'16px'}}>
+          📋 Paste dashboard data
+        </button>
+        <div style={{fontSize:'0.8rem',color:'var(--text-muted)',lineHeight:1.6,borderTop:'1px solid var(--border)',paddingTop:'12px'}}>
+          <strong style={{color:'var(--text-muted)'}}>Advanced (optional):</strong> drag this one-click bookmark to your bookmarks bar → &nbsp;<BookmarkletLink />&nbsp; (drag it, don't click). Then on any dashboard, click it to grab automatically.
+        </div>
+      </div>
+
+      <div style={{marginTop:'16px',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'10px',padding:'16px 20px'}}>
+        <div style={{fontWeight:600,marginBottom:'8px',fontSize:'0.9rem'}}>How amounts get here</div>
+        <div style={{fontSize:'0.83rem',color:'var(--text-muted)',lineHeight:'1.8'}}>
+          <strong style={{color:'var(--green)'}}>Received</strong> — pulled automatically from your PayPal &amp; Wise emails every day, reconciled on the 25th.<br/>
+          <strong style={{color:'var(--blue)'}}>Expected</strong> — Zapmail via <code style={{background:'var(--surface2)',padding:'1px 8px',borderRadius:'4px',color:'var(--accent-light)'}}>/zapmail-check</code>; Smartlead &amp; Heyreach equal their payout; others entered from the dashboard via <strong>Edit</strong>.<br/>
+          A row is <strong style={{color:'var(--green)'}}>Confirmed</strong> when Expected and Received match.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Annual Report ─────────────────────────────────────────────
+function AnnualReport({ data, year, setYear }) {
+  const months = useMemo(() => {
+    return Array.from({ length: 12 }, (_, i) => {
+      const key = monthKey(year, i);
+      const entries = data[key] || {};
+      let totalExp = 0, totalRec = 0;
+      const vendors = VENDORS.map(v => {
+        const e = entries[v.id];
+        const s = getStatus(e);
+        const exp = e?.expected ? parseFloat(e.expected) : null;
+        const rec = e?.received ? parseFloat(e.received) : null;
+        if (exp) totalExp += exp;
+        if (rec) totalRec += rec;
+        return { ...v, status: s, exp, rec };
+      });
+      const hasData   = totalExp > 0 || totalRec > 0;
+      const isFuture  = new Date(year, i, 1) > new Date();
+      const allPaid   = hasData && vendors.every(v => v.status === 'paid' || v.status === 'pending');
+      const anyMissing = vendors.some(v => v.status === 'missing');
+      const anyWrong   = vendors.some(v => v.status === 'wrong');
+      let monthStatus = 'pending';
+      if (isFuture)   monthStatus = 'future';
+      else if (!hasData) monthStatus = 'no-data';
+      else if (anyMissing) monthStatus = 'missing';
+      else if (anyWrong)   monthStatus = 'wrong';
+      else if (allPaid)    monthStatus = 'paid';
+      return { label: MONTHS[i], key, totalExp, totalRec, diff: totalRec - totalExp, vendors, monthStatus, hasData, isFuture };
+    });
+  }, [data, year]);
+
+  const yearStats = useMemo(() => {
+    let exp = 0, rec = 0, okMonths = 0, issueMonths = 0;
+    months.forEach(m => {
+      if (m.hasData) {
+        exp += m.totalExp;
+        rec += m.totalRec;
+        if (m.monthStatus === 'paid') okMonths++;
+        if (m.monthStatus === 'missing' || m.monthStatus === 'wrong') issueMonths++;
+      }
+    });
+    return { exp, rec, diff: rec - exp, okMonths, issueMonths };
+  }, [months]);
+
+  const STATUS_ICON = { paid: '✓ Correct', missing: '✗ Missing', wrong: '⚠ Discrepancy', pending: '· Pending', future: '–', 'no-data': '· No data' };
+  const STATUS_CLASS = { paid: 'check-ok', missing: 'check-fail', wrong: 'check-disc', pending: 'check-pend', future: 'check-pend', 'no-data': 'check-pend' };
+
+  return (
+    <div>
+      <div className="year-header">
+        <div className="year-nav" style={{display:'flex',alignItems:'center',gap:'8px'}}>
+          <button onClick={() => setYear(y => y - 1)}>‹</button>
+          <span className="year-label">{year}</span>
+          <button onClick={() => setYear(y => y + 1)}>›</button>
+        </div>
+        <span style={{color:'var(--text-muted)',fontSize:'0.85rem'}}>Commission accuracy check — all vendors</span>
+      </div>
+
+      <div className="year-summary">
+        <div className="year-card"><div className="label">Total Expected</div><div className="value blue">{fmtCurrency(yearStats.exp)}</div></div>
+        <div className="year-card"><div className="label">Total Received</div><div className="value green">{fmtCurrency(yearStats.rec)}</div></div>
+        <div className="year-card">
+          <div className="label">Difference</div>
+          <div className={`value ${yearStats.diff >= 0 ? 'green' : 'red'}`}>
+            {yearStats.exp === 0 ? '—' : (yearStats.diff >= 0 ? '+' : '') + fmtCurrency(yearStats.diff)}
+          </div>
+        </div>
+        <div className="year-card"><div className="label">Months Correct</div><div className="value green">{yearStats.okMonths} / 12</div></div>
+        <div className="year-card"><div className="label">Issues Found</div><div className={`value ${yearStats.issueMonths > 0 ? 'red' : 'green'}`}>{yearStats.issueMonths}</div></div>
+      </div>
+
+      <div className="annual-table-wrap">
+        <table className="annual-table">
+          <thead>
+            <tr>
+              <th>Month</th>
+              <th>Expected</th>
+              <th>Received</th>
+              <th>Difference</th>
+              <th>Result</th>
+              <th>Per Vendor</th>
+            </tr>
+          </thead>
+          <tbody>
+            {months.map(m => (
+              <tr key={m.key} style={{opacity: m.isFuture ? 0.35 : 1}}>
+                <td className="month-col">{m.label} {year}</td>
+                <td className="amount expected">{m.totalExp ? fmtCurrency(m.totalExp) : '—'}</td>
+                <td className="amount received" style={{fontWeight:600}}>{m.totalRec ? fmtCurrency(m.totalRec) : '—'}</td>
+                <td>
+                  {m.hasData && !m.isFuture
+                    ? <span className={`diff ${m.diff >= 0 ? 'positive' : 'negative'}`}>{m.diff >= 0 ? '+' : ''}{fmtCurrency(m.diff)}</span>
+                    : <span style={{color:'var(--border)'}}>—</span>}
+                </td>
+                <td><span className={STATUS_CLASS[m.monthStatus]}>{STATUS_ICON[m.monthStatus]}</span></td>
+                <td>
+                  <div className="vendor-mini-grid">
+                    {m.vendors.map(v => (
+                      <span key={v.id} className={`vendor-chip ${v.status}`} title={`${v.name}: ${v.exp != null ? fmtCurrency(v.exp) : '—'} expected / ${v.rec != null ? fmtCurrency(v.rec) : '—'} received`}>
+                        {v.name}
+                      </span>
+                    ))}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div style={{fontSize:'0.8rem',color:'var(--text-muted)',lineHeight:'1.6'}}>
+        <strong style={{color:'var(--text)'}}>How to fill missing months:</strong> Received amounts arrive automatically from your PayPal/Wise emails. For Expected, refresh Zapmail with <code style={{background:'var(--surface2)',padding:'1px 6px',borderRadius:'4px'}}>/zapmail-check</code>, and enter other vendors' figures from their dashboard using the <strong>Edit</strong> button in Monthly View.
+      </div>
+    </div>
+  );
+}
+
+// ── Bookmarklet + dashboard import ────────────────────────────
+// Runs in YOUR browser on a vendor dashboard you're already logged into,
+// scrapes any table rows with a $ amount, and opens the tracker with the data.
+const BOOKMARKLET = "javascript:(function(){var T='https://commission-tracker-mauve.vercel.app/';var h=location.hostname,M=[[/zapmail/,'zapmail'],[/getrewardful/,'smartlead'],[/tolt/,'heyreach'],[/firstpromoter/,'icypeas'],[/inboxkit/,'inboxkit'],[/dub\\.co/,'leadmagic']],v='';for(var i=0;i<M.length;i++){if(M[i][0].test(h)){v=M[i][1];break;}}var R=[];document.querySelectorAll('tr').forEach(function(tr){var c=[].map.call(tr.querySelectorAll('td,th'),function(x){return x.innerText.trim();});var j=c.join(' | ');var a=j.match(/\\$\\s*([0-9][0-9,]*\\.?[0-9]{0,2})/);if(!a)return;var n=parseFloat(a[1].replace(/,/g,''));if(isNaN(n))return;R.push({label:c.filter(Boolean).join(' \\u00b7 ').slice(0,140),amount:n});});if(!R.length){alert('No $ rows found here. Open the vendor\\u2019s Payouts or Commissions page, then click again.');return;}var p={vendor:v,host:h,url:location.href,rows:R};window.open(T+'#import='+encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(p))))),'_blank');})();";
+
+function BookmarkletLink() {
+  const ref = useRef(null);
+  useEffect(() => { if (ref.current) ref.current.setAttribute('href', BOOKMARKLET); }, []);
+  return (
+    <a ref={ref} onClick={e => e.preventDefault()} draggable="true"
+       style={{display:'inline-block',background:'var(--accent)',color:'#fff',padding:'10px 18px',borderRadius:'8px',
+               fontWeight:600,fontSize:'0.9rem',textDecoration:'none',cursor:'grab'}}>
+      ⤵ Grab to Tracker
+    </a>
+  );
+}
+
+const MONTH_MAP = { jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12' };
+function parseMonth(text) {
+  const t = String(text).toLowerCase();
+  let m = t.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*,?\s*(\d{4})/);
+  if (m) return `${m[2]}-${MONTH_MAP[m[1]]}`;
+  m = t.match(/(\d{4})-(\d{2})/);            if (m) return `${m[1]}-${m[2]}`;
+  m = t.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); if (m) return `${m[3]}-${String(m[1]).padStart(2,'0')}`;
+  return '';
+}
+
+function ImportModal({ data, onSave, onClose, saving }) {
+  const [vendor, setVendor] = useState(VENDORS.some(v=>v.id===data.vendor) ? data.vendor : 'zapmail');
+  const [field, setField]   = useState('expected');
+  const [rows, setRows]     = useState(data.rows.map(r => ({ ...r, month: parseMonth(r.label), include: true })));
+  const upd = (i, k, v) => setRows(rs => rs.map((r, j) => j === i ? { ...r, [k]: v } : r));
+  const ready = rows.filter(r => r.include && /^\d{4}-\d{2}$/.test(r.month));
+
+  return (
+    <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={{maxWidth:'640px'}}>
+        <h2>Import from dashboard</h2>
+        <p style={{fontSize:'0.82rem',color:'var(--text-muted)',marginBottom:'16px',lineHeight:1.5}}>
+          Grabbed {rows.length} row{rows.length!==1?'s':''} from <span style={{color:'var(--accent-light)'}}>{data.host}</span>.
+          Pick the vendor, what these amounts represent, and the month for each — then save to your account.
+        </p>
+        <div style={{display:'flex',gap:'12px',marginBottom:'16px',flexWrap:'wrap'}}>
+          <div style={{flex:1,minWidth:'160px'}}>
+            <label style={{display:'block',fontSize:'0.75rem',color:'var(--text-muted)',marginBottom:'6px',textTransform:'uppercase'}}>Vendor</label>
+            <select value={vendor} onChange={e=>setVendor(e.target.value)} style={{width:'100%',background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:'8px',color:'var(--text)',padding:'9px 12px',fontSize:'0.9rem'}}>
+              {VENDORS.map(v=><option key={v.id} value={v.id}>{v.name}</option>)}
+            </select>
+          </div>
+          <div style={{flex:1,minWidth:'160px'}}>
+            <label style={{display:'block',fontSize:'0.75rem',color:'var(--text-muted)',marginBottom:'6px',textTransform:'uppercase'}}>These amounts are</label>
+            <select value={field} onChange={e=>setField(e.target.value)} style={{width:'100%',background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:'8px',color:'var(--text)',padding:'9px 12px',fontSize:'0.9rem'}}>
+              <option value="expected">Expected (dashboard figure)</option>
+              <option value="received">Received (paid out)</option>
+            </select>
+          </div>
+        </div>
+        <div style={{maxHeight:'300px',overflowY:'auto',border:'1px solid var(--border)',borderRadius:'8px'}}>
+          <table style={{width:'100%',fontSize:'0.82rem'}}>
+            <thead style={{background:'var(--surface2)',position:'sticky',top:0}}>
+              <tr><th style={{padding:'8px',width:'30px'}}></th><th style={{padding:'8px',textAlign:'left'}}>Row</th><th style={{padding:'8px',width:'90px'}}>Amount</th><th style={{padding:'8px',width:'110px'}}>Month</th></tr>
+            </thead>
+            <tbody>
+              {rows.map((r,i)=>(
+                <tr key={i} style={{borderTop:'1px solid var(--border)',opacity:r.include?1:0.4}}>
+                  <td style={{padding:'8px',textAlign:'center'}}><input type="checkbox" checked={r.include} onChange={e=>upd(i,'include',e.target.checked)} /></td>
+                  <td style={{padding:'8px',color:'var(--text-muted)'}}>{r.label}</td>
+                  <td style={{padding:'8px',fontWeight:600,whiteSpace:'nowrap'}}>{fmtCurrency(r.amount)}</td>
+                  <td style={{padding:'8px'}}><input value={r.month} onChange={e=>upd(i,'month',e.target.value)} placeholder="YYYY-MM" style={{width:'90px',background:'var(--surface2)',border:`1px solid ${/^\d{4}-\d{2}$/.test(r.month)?'var(--border)':'var(--red)'}`,borderRadius:'6px',color:'var(--text)',padding:'5px 7px',fontSize:'0.8rem'}} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="modal-actions">
+          <button className="btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" onClick={()=>onSave({vendor,field,rows:ready})} disabled={saving||!ready.length}>
+            {saving?'Saving…':`Save ${ready.length} row${ready.length!==1?'s':''}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function parsePasted(text) {
+  return text.split(/\n/).map(l => l.trim()).filter(Boolean).map(l => {
+    const m = l.match(/\$\s*([0-9][0-9,]*\.?[0-9]{0,2})|([0-9][0-9,]*\.[0-9]{2})\s*(USD|EUR|GBP)/i);
+    if (!m) return null;
+    const num = parseFloat((m[1] || m[2]).replace(/,/g, ''));
+    if (isNaN(num)) return null;
+    return { label: l.slice(0, 140), amount: num };
+  }).filter(Boolean);
+}
+
+function PasteModal({ onParse, onClose }) {
+  const [text, setText] = useState('');
+  const rows = parsePasted(text);
+  return (
+    <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={{maxWidth:'560px'}}>
+        <h2>Paste dashboard data</h2>
+        <p style={{fontSize:'0.82rem',color:'var(--text-muted)',marginBottom:'14px',lineHeight:1.5}}>
+          On the vendor's Payouts/Commissions page, select the table (or the whole page), copy it (⌘C / Ctrl+C),
+          and paste it below. The tracker pulls out every line with a dollar amount — you confirm the rest next.
+        </p>
+        <textarea value={text} onChange={e=>setText(e.target.value)} autoFocus rows={9}
+          placeholder={"Paste here. e.g.\nMarch 2026   $1,774.56   Paid\nFebruary 2026   $1,180.82   Paid"}
+          style={{width:'100%',background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:'8px',color:'var(--text)',padding:'12px',fontSize:'0.88rem',fontFamily:'inherit',resize:'vertical'}} />
+        <div style={{fontSize:'0.8rem',color: rows.length?'var(--green)':'var(--text-muted)',margin:'10px 0'}}>
+          {rows.length ? `✓ Found ${rows.length} row${rows.length!==1?'s':''} with an amount` : 'Paste text containing $ amounts…'}
+        </div>
+        <div className="modal-actions">
+          <button className="btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" onClick={()=>onParse({vendor:'',host:'pasted data',rows})} disabled={!rows.length}>
+            Continue ({rows.length})
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Auth screen ───────────────────────────────────────────────
+function AuthScreen({ onAuthed }) {
+  const [mode, setMode]         = useState('login'); // 'login' | 'signup'
+  const [email, setEmail]       = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy]         = useState(false);
+  const [err, setErr]           = useState('');
+  const [info, setInfo]         = useState('');
+
+  async function submit(e) {
+    e.preventDefault();
+    setErr(''); setInfo(''); setBusy(true);
+    try {
+      if (mode === 'signup') {
+        const r = await authSignUp(email.trim(), password);
+        if (r.access_token) { onAuthed(); return; }
+        setInfo('Account created. Check your email to confirm, then log in.');
+        setMode('login');
+      } else {
+        await authSignIn(email.trim(), password);
+        onAuthed();
+      }
+    } catch (e2) {
+      setErr(e2.message || 'Something went wrong');
+    }
+    setBusy(false);
+  }
+
+  return (
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',padding:'20px'}}>
+      <div style={{width:'100%',maxWidth:'400px'}}>
+        <div style={{textAlign:'center',marginBottom:'28px'}}>
+          <h1 style={{fontSize:'1.6rem',fontWeight:700,letterSpacing:'-0.01em'}}>Commission <span style={{color:'var(--accent-light)'}}>Tracker</span></h1>
+          <p style={{color:'var(--text-muted)',fontSize:'0.88rem',marginTop:'8px'}}>Sign in to access your dashboard</p>
+        </div>
+        <form onSubmit={submit} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'16px',padding:'28px'}}>
+          <div style={{display:'flex',gap:'4px',background:'var(--surface2)',borderRadius:'10px',padding:'4px',marginBottom:'22px'}}>
+            <button type="button" className={`tab ${mode==='login'?'active':''}`} style={{flex:1}} onClick={()=>{setMode('login');setErr('');setInfo('');}}>Log in</button>
+            <button type="button" className={`tab ${mode==='signup'?'active':''}`} style={{flex:1}} onClick={()=>{setMode('signup');setErr('');setInfo('');}}>Sign up</button>
+          </div>
+          <div className="form-row"><label>Email</label>
+            <input type="email" autoComplete="email" placeholder="you@cymate.io" value={email} onChange={e=>setEmail(e.target.value)} required /></div>
+          <div className="form-row"><label>Password</label>
+            <input type="password" autoComplete={mode==='signup'?'new-password':'current-password'} placeholder="••••••••" value={password} onChange={e=>setPassword(e.target.value)} required minLength={6} /></div>
+          {err  && <div style={{color:'var(--red)',fontSize:'0.82rem',marginBottom:'14px'}}>{err}</div>}
+          {info && <div style={{color:'var(--green)',fontSize:'0.82rem',marginBottom:'14px'}}>{info}</div>}
+          <button type="submit" className="btn-primary" style={{width:'100%',padding:'12px'}} disabled={busy}>
+            {busy ? 'Please wait…' : (mode==='signup'?'Create account':'Log in')}
+          </button>
+        </form>
+        <p style={{textAlign:'center',color:'var(--text-muted)',fontSize:'0.75rem',marginTop:'16px',lineHeight:1.5}}>
+          Accounts are managed by Supabase Auth. Only signed-in users can view commission data.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ── App ───────────────────────────────────────────────────────
+function App() {
+  const now = new Date();
+  const [year, setYear]       = useState(now.getFullYear());
+  const [month, setMonth]     = useState(now.getMonth());
+  const [authed, setAuthed]   = useState(isAuthed());
+  const [importData, setImportData] = useState(null);
+  const [importing, setImporting]   = useState(false);
+  const [showPaste, setShowPaste]   = useState(false);
+  const [showPw, setShowPw]         = useState(false);
+  const [highlightSince] = useState(() => { try { return localStorage.getItem('ct_seen') || ''; } catch (e) { return ''; } });
+  function markSeen() { try { localStorage.setItem('ct_seen', new Date().toISOString()); } catch (e) {} }
+  const [data, setData]       = useState({});
+  const [reminders, setRem]   = useState({});
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(null);
+  const [logPayment, setLogPayment] = useState(null);
+  const [savingEntry, setSavingEntry] = useState(false);
+  const [showRem, setShowRem] = useState(false);
+  const [syncing, setSyncing]       = useState(false);
+  const [tab, setTab]               = useState('monthly');
+  const [reportYear, setReportYear] = useState(new Date().getFullYear());
+  const [toast, setToast]     = useState(null);
+  const toastTimer            = useRef(null);
+
+  function showToast(msg, type = 'success') {
+    clearTimeout(toastTimer.current);
+    setToast({ msg, type });
+    toastTimer.current = setTimeout(() => setToast(null), 4000);
+  }
+
+  async function loadAll() {
+    try {
+      const [rows, remRows] = await Promise.all([
+        sbGet('commissions'),
+        sbGet('reminders'),
+      ]);
+      setData(rowsToData(rows));
+      const r = {};
+      remRows.forEach(row => { r[row.vendor || row.vendor_id] = row.payment_day; });
+      setRem(r);
+      markSeen();
+    } catch (e) {
+      if (String(e.message).includes('401')) { authSignOut(); setAuthed(false); }
+      else showToast('Failed to load data from database', 'error');
+    }
+    setLoading(false);
+  }
+
+  function handleSignOut() { authSignOut(); setAuthed(false); }
+
+  useEffect(() => { if (authed) loadAll(); }, [authed]);
+
+  // Catch data handed off by the "Grab to Tracker" bookmarklet (#import=...)
+  useEffect(() => {
+    const m = window.location.hash.match(/#import=([^&]+)/);
+    if (!m) return;
+    try {
+      const json = decodeURIComponent(escape(atob(decodeURIComponent(m[1]))));
+      setImportData(JSON.parse(json));
+    } catch (e) { /* ignore malformed */ }
+    history.replaceState(null, '', window.location.pathname);
+  }, []);
+
+  async function handleImport({ vendor, field, rows }) {
+    setImporting(true);
+    try {
+      for (const r of rows) {
+        await sbUpsert('commissions', {
+          month: r.month, vendor, user_id: currentUserId(),
+          [field]: r.amount, updated_at: new Date().toISOString(),
+        });
+      }
+      await loadAll();
+      setImportData(null);
+      showToast(`✓ Imported ${rows.length} row${rows.length!==1?'s':''}`);
+    } catch (e) {
+      showToast('Import failed — try again', 'error');
+    }
+    setImporting(false);
+  }
+
+  const mKey = monthKey(year, month);
+  const monthEntries = data[mKey] || {};
+  const monthLabel = new Date(year, month, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' });
+
+  function prevMonth() { if (month===0) { setYear(y=>y-1); setMonth(11); } else setMonth(m=>m-1); }
+  function nextMonth() { if (month===11) { setYear(y=>y+1); setMonth(0); } else setMonth(m=>m+1); }
+
+  async function saveEntry(vendorId, form) {
+    setSavingEntry(true);
+    try {
+      await sbUpsert('commissions', {
+        month:        mKey,
+        vendor:       vendorId,
+        user_id:      currentUserId(),
+        expected:     form.expected     !== '' ? parseFloat(form.expected)     : null,
+        received:     form.received     !== '' ? parseFloat(form.received)     : null,
+        payment_date: form.payment_date || null,
+        notes:        form.notes        || null,
+        updated_at:   new Date().toISOString(),
+      });
+      setData(d => ({
+        ...d,
+        [mKey]: {
+          ...(d[mKey]||{}),
+          [vendorId]: { ...form, _scraped: d[mKey]?.[vendorId]?._scraped },
+        },
+      }));
+      setEditing(null);
+      setLogPayment(null);
+      showToast(`✓ Saved`);
+    } catch (e) {
+      showToast('Failed to save — check your connection', 'error');
+    }
+    setSavingEntry(false);
+  }
+
+  async function handleSaveReminders(r) {
+    await Promise.all(
+      Object.entries(r).map(([vid, day]) =>
+        sbUpsert('reminders', { vendor: vid, user_id: currentUserId(), payment_day: day ? parseInt(day) : null, updated_at: new Date().toISOString() })
+      )
+    );
+    setRem(r);
+    setShowRem(false);
+  }
+
+  async function handleSync() {
+    setSyncing(true);
+    let before = 0;
+    try { before = (await sbGet('commissions')).length; } catch (e) {}
+
+    // Re-read the latest synced data. The Gmail scan runs automatically in
+    // Google's cloud and writes here; this pulls in whatever is current.
+    try {
+      const rows = await sbGet('commissions');
+      const after = rows.length;
+      setData(rowsToData(rows));
+      markSeen();
+      showToast(after > before ? `✓ Synced — ${after - before} new payment row${after - before !== 1 ? 's' : ''}` : '✓ Refreshed — up to date');
+    } catch (e) {
+      showToast('Failed to refresh', 'error');
+    }
+    setSyncing(false);
+  }
+
+  const stats = useMemo(() => {
+    let totalExpected=0, totalReceived=0, countPaid=0, countMissing=0, countWrong=0;
+    VENDORS.forEach(v => {
+      const e = monthEntries[v.id]; const s = getStatus(e);
+      if (e?.expected) totalExpected += parseFloat(e.expected)||0;
+      if (e?.received) totalReceived += parseFloat(e.received)||0;
+      if (s==='paid') countPaid++;
+      if (s==='missing') countMissing++;
+      if (s==='wrong') countWrong++;
+    });
+    return { totalExpected, totalReceived, countPaid, countMissing, countWrong };
+  }, [monthEntries]);
+
+  const alerts = useMemo(() => {
+    const today = new Date();
+    return VENDORS.flatMap(v => {
+      const e = monthEntries[v.id];
+      const status = getStatus(e);
+      const day = parseInt(reminders[v.id]);
+      if (!day || today.getMonth() !== month || today.getFullYear() !== year) return [];
+      const daysPast = Math.floor((today - new Date(year, month, day)) / 86400000);
+      if (daysPast >= 0 && status !== 'paid')
+        return [{ vendor: v, daysPast, status, type: daysPast > 3 ? 'danger' : 'warn' }];
+      return [];
+    });
+  }, [monthEntries, reminders, year, month]);
+
+  const editVendor = editing ? VENDORS.find(v => v.id === editing) : null;
+  const logVendor  = logPayment ? VENDORS.find(v => v.id === logPayment) : null;
+
+  if (!authed) return <AuthScreen onAuthed={() => { setLoading(true); setAuthed(true); }} />;
+
+  if (loading) return (
+    <div className="app"><div className="loading"><div className="spinner" /> Loading from database…</div></div>
+  );
+
+  return (
+    <div className="app">
+      <div className="header">
+        <h1>Commission <span>Tracker</span></h1>
+        <div className="header-right">
+          <button className={`btn-action sync`} onClick={handleSync} disabled={syncing} title="Pull in the latest synced payments and update the dashboard.">
+            {syncing ? '🔄 Refreshing…' : '🔄 Refresh'}
+          </button>
+          <button className="btn-action" onClick={() => setShowRem(true)}>🔔 Reminders</button>
+          <button className="btn-action" onClick={() => exportCSV(data, year, month)}>⬇ Export CSV</button>
+          <button className="btn-action" onClick={() => setShowPw(true)}>🔑 Password</button>
+          <button className="btn-action" onClick={handleSignOut}>⎋ Sign out</button>
+          {tab === 'monthly' && (
+            <div className="month-nav">
+              <button onClick={prevMonth}>‹</button>
+              <span className="month-label">{monthLabel}</span>
+              <button onClick={nextMonth}>›</button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="tabs">
+        <button className={`tab ${tab==='monthly'?'active':''}`} onClick={() => setTab('monthly')}>Monthly View</button>
+        <button className={`tab ${tab==='trends'?'active':''}`} onClick={() => setTab('trends')}>Trends</button>
+        <button className={`tab ${tab==='annual'?'active':''}`} onClick={() => setTab('annual')}>Annual Report</button>
+        <button className={`tab ${tab==='vendors'?'active':''}`} onClick={() => setTab('vendors')}>Vendors</button>
+      </div>
+
+      {tab === 'monthly' && (<>
+        {alerts.length > 0 && (
+          <div className="alerts">
+            {alerts.map((a,i) => (
+              <div key={i} className={`alert-item ${a.type}`}>
+                <span>{a.type==='danger'?'🚨':'⚠️'}</span>
+                <span><strong>{a.vendor.name}</strong> payment due day {reminders[a.vendor.id]} —{' '}
+                  {a.daysPast===0?'due today':`${a.daysPast} day${a.daysPast>1?'s':''} overdue`}.{' '}
+                  Status: <strong>{STATUS_LABELS[a.status]}</strong>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="summary">
+          <div className="card"><div className="label">Total Expected</div><div className="value blue">{fmtCurrency(stats.totalExpected)}</div></div>
+          <div className="card"><div className="label">Total Received</div><div className="value green">{fmtCurrency(stats.totalReceived)}</div></div>
+          <div className="card">
+            <div className="label">Difference</div>
+            <div className={`value ${stats.totalReceived-stats.totalExpected>=0?'green':'red'}`}>
+              {stats.totalExpected===0&&stats.totalReceived===0?'—':fmtCurrency(stats.totalReceived-stats.totalExpected)}
+            </div>
+          </div>
+          <div className="card"><div className="label">Paid</div><div className="value green">{stats.countPaid} / {VENDORS.length}</div></div>
+          <div className="card"><div className="label">Missing</div><div className="value red">{stats.countMissing}</div></div>
+          <div className="card"><div className="label">Discrepancies</div><div className="value yellow">{stats.countWrong}</div></div>
+        </div>
+
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>Vendor</th><th>Payment Date</th><th>Expected</th><th>Received</th><th>Diff</th><th>Status</th><th>Updated</th><th></th></tr></thead>
+            <tbody>
+              {VENDORS.map(v => {
+                const e = monthEntries[v.id];
+                const status = getStatus(e);
+                const exp = e?.expected !== '' && e?.expected != null ? parseFloat(e.expected) : null;
+                const rec = e?.received !== '' && e?.received != null ? parseFloat(e.received) : null;
+                const diff = exp !== null && rec !== null ? rec - exp : null;
+                const isNew = e?.updated_at && highlightSince && e.updated_at > highlightSince;
+                return (
+                  <tr key={v.id} style={isNew ? {boxShadow:'inset 3px 0 0 var(--green)'} : null}>
+                    <td><span className="vendor-dot" style={{background:v.color}} /><span className="vendor-name">{v.name}</span></td>
+                    <td className="date-cell">{fmtDate(e?.payment_date)}</td>
+                    <td>
+                      <span className="amount expected">{exp!==null?fmtCurrency(exp):'—'}</span>
+                      {e?._scraped && <span className="scraped-badge" title={`Scraped ${new Date(e._scraped).toLocaleString()}`}>auto</span>}
+                    </td>
+                    <td><span className="amount received">{rec!==null?fmtCurrency(rec):'—'}</span></td>
+                    <td>{diff!==null?<span className={`diff ${diff>=0?'positive':'negative'}`}>{diff>=0?'+':''}{fmtCurrency(diff)}</span>:<span style={{color:'var(--border)'}}>—</span>}</td>
+                    <td><span className={`status ${status}`}>{STATUS_LABELS[status]}</span></td>
+                    <td className="date-cell" title={e?.notes||''}>
+                      {e?.updated_at ? fmtRel(e.updated_at) : '—'}
+                      {isNew && <span style={{marginLeft:'6px',color:'var(--green)',fontSize:'0.7rem',fontWeight:700}}>● new</span>}
+                    </td>
+                    <td style={{display:'flex',gap:'6px',alignItems:'center'}}>
+                      {(status === 'missing' || status === 'pending') && exp !== null && (
+                        <button
+                          className="btn-log-receipt"
+                          style={{background:'rgba(74,222,128,0.12)',border:'1px solid rgba(74,222,128,0.3)',color:'var(--green)',padding:'5px 11px',borderRadius:'6px',cursor:'pointer',fontSize:'0.8rem',fontWeight:600,whiteSpace:'nowrap'}}
+                          onClick={() => setLogPayment(v.id)}
+                        >+ Log Receipt</button>
+                      )}
+                      <button className="btn-edit" onClick={() => setEditing(v.id)}>Edit</button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </>)}
+
+      {tab === 'trends' && <TrendsView data={data} />}
+      {tab === 'annual' && <AnnualReport data={data} year={reportYear} setYear={setReportYear} />}
+      {tab === 'vendors' && <VendorsTab data={data} year={reportYear} onPaste={() => setShowPaste(true)} />}
+
+      {toast && <div className={`toast ${toast.type}`}>{toast.msg}</div>}
+
+      {logPayment && <LogPaymentModal vendor={logVendor} monthLabel={monthLabel} entry={monthEntries[logPayment]}
+        onSave={form => saveEntry(logPayment, form)}
+        onClose={() => setLogPayment(null)} saving={savingEntry} />}
+
+      {editing && <EntryModal vendor={editVendor} monthLabel={monthLabel} entry={monthEntries[editing]}
+        onSave={form => saveEntry(editing, form)} onClose={() => setEditing(null)} saving={savingEntry} />}
+
+      {showRem && <RemindersModal reminders={reminders} onSave={handleSaveReminders} onClose={() => setShowRem(false)} />}
+
+      {showPw && <ChangePasswordModal onClose={() => setShowPw(false)} />}
+
+      {showPaste && <PasteModal onParse={d => { setShowPaste(false); setImportData(d); }} onClose={() => setShowPaste(false)} />}
+
+      {importData && <ImportModal data={importData} onSave={handleImport} onClose={() => setImportData(null)} saving={importing} />}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
