@@ -984,7 +984,7 @@ function App() {
   const now = new Date();
   const [year, setYear]       = useState(now.getFullYear());
   const [month, setMonth]     = useState(now.getMonth());
-  const [authed, setAuthed]   = useState(isAuthed());
+  const [authed, setAuthed]   = useState(true);
   const [importData, setImportData] = useState(null);
   const [importing, setImporting]   = useState(false);
   const [showPaste, setShowPaste]   = useState(false);
@@ -1022,15 +1022,14 @@ function App() {
       setRem(r);
       markSeen();
     } catch (e) {
-      if (String(e.message).includes('401')) { authSignOut(); setAuthed(false); }
-      else showToast('Failed to load data from database', 'error');
+      showToast('Failed to load data from database', 'error');
     }
     setLoading(false);
   }
 
   function handleSignOut() { authSignOut(); setAuthed(false); }
 
-  useEffect(() => { if (authed) loadAll(); }, [authed]);
+  useEffect(() => { loadAll(); }, []);
 
   // Catch data handed off by the "Grab to Tracker" bookmarklet (#import=...)
   useEffect(() => {
@@ -1156,7 +1155,6 @@ function App() {
   const editVendor = editing ? VENDORS.find(v => v.id === editing) : null;
   const logVendor  = logPayment ? VENDORS.find(v => v.id === logPayment) : null;
 
-  if (!authed) return <AuthScreen onAuthed={() => { setLoading(true); setAuthed(true); }} />;
 
   if (loading) return (
     <div className="app"><div className="loading"><div className="spinner" /> Loading from database…</div></div>
@@ -1172,8 +1170,6 @@ function App() {
           </button>
           <button className="btn-action" onClick={() => setShowRem(true)}>🔔 Reminders</button>
           <button className="btn-action" onClick={() => exportCSV(data, year, month)}>⬇ Export CSV</button>
-          <button className="btn-action" onClick={() => setShowPw(true)}>🔑 Password</button>
-          <button className="btn-action" onClick={handleSignOut}>⎋ Sign out</button>
           {tab === 'monthly' && (
             <div className="month-nav">
               <button onClick={prevMonth}>‹</button>
