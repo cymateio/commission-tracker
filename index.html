@@ -913,6 +913,7 @@ function SyncModal({ onDone, onClose }) {
   const [localResults, setLocalResults]= useState(null);
   const [localOnline,  setLocalOnline] = useState(null);
   const [discrepancies,setDiscreps]    = useState([]);
+  const [sbRows,       setSbRows]      = useState([]);
   const [errMsg,       setErrMsg]      = useState('');
   const [tick,         setTick]        = useState(0);
 
@@ -956,6 +957,7 @@ function SyncModal({ onDone, onClose }) {
         const apiData = await apiResp.json();
         setApiResults(apiData.results || {});
         setDiscreps(apiData.discrepancies || []);
+        setSbRows(apiData.rows || []);
 
         // Process local scraper response
         if (localSettled.status === 'fulfilled' && localSettled.value) {
@@ -982,7 +984,11 @@ function SyncModal({ onDone, onClose }) {
     const isLocal = LOCAL_VENDORS.has(v);
     const r = isLocal && localResults ? localResults[v] : apiResults[v];
     if (!r) return <span style={{color:'var(--text-muted)'}}>—</span>;
-    if (r.skipped) return <span style={{color:'var(--text-muted)'}}>↳</span>;
+    if (r.skipped) {
+      const hasData = sbRows.some(row => row.vendor === v);
+      if (hasData) return <span style={{color:'var(--green)'}}>✓</span>;
+      return <span style={{color:'var(--text-muted)'}}>↳</span>;
+    }
     if (!r.ok) return <span style={{color:'var(--red)'}}>✗</span>;
     return <span style={{color:'var(--green)'}}>✓</span>;
   }
@@ -1001,13 +1007,17 @@ function SyncModal({ onDone, onClose }) {
     }
     const r = isLocal && localResults ? localResults[v] : apiResults[v];
     if (!r) return <span style={{fontSize:'0.8rem',color:'var(--text-muted)'}}>—</span>;
-    if (r.skipped) return (
-      <span style={{fontSize:'0.8rem',color:'var(--text-muted)'}}>
-        {r.reason}{' '}
-        <a href={PORTALS[v]} target="_blank" rel="noopener noreferrer"
-           style={{color:'var(--accent-light)',textDecoration:'none'}}>↗ portal</a>
-      </span>
-    );
+    if (r.skipped) {
+      const hasData = sbRows.some(row => row.vendor === v);
+      if (hasData) return <span style={{fontSize:'0.8rem',color:'var(--green)'}}>up to date</span>;
+      return (
+        <span style={{fontSize:'0.8rem',color:'var(--text-muted)'}}>
+          {r.reason}{' '}
+          <a href={PORTALS[v]} target="_blank" rel="noopener noreferrer"
+             style={{color:'var(--accent-light)',textDecoration:'none'}}>↗ portal</a>
+        </span>
+      );
+    }
     if (!r.ok) return (
       <span style={{fontSize:'0.8rem',color:'var(--red)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}
             title={r.error}>{r.error}</span>
