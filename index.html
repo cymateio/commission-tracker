@@ -957,7 +957,16 @@ function SyncModal({ onDone, onClose }) {
         const apiData = await apiResp.json();
         setApiResults(apiData.results || {});
         setDiscreps(apiData.discrepancies || []);
-        setSbRows(apiData.rows || []);
+
+        // Fetch current Supabase rows directly so skipped-vendor check is reliable
+        try {
+          const sbResp = await fetch(
+            `${SB_URL}/rest/v1/commissions?select=vendor,month&order=month.desc`,
+            { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } }
+          );
+          if (sbResp.ok) setSbRows(await sbResp.json());
+          else setSbRows(apiData.rows || []);
+        } catch (_) { setSbRows(apiData.rows || []); }
 
         // Process local scraper response
         if (localSettled.status === 'fulfilled' && localSettled.value) {
