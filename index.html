@@ -961,7 +961,7 @@ function SyncModal({ onDone, onClose }) {
         // Fetch current Supabase rows directly so skipped-vendor check is reliable
         try {
           const sbResp = await fetch(
-            `${SB_URL}/rest/v1/commissions?select=vendor,month&order=month.desc`,
+            `${SB_URL}/rest/v1/commissions?select=vendor,month,expected,received&order=month.desc`,
             { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } }
           );
           if (sbResp.ok) setSbRows(await sbResp.json());
@@ -1017,15 +1017,22 @@ function SyncModal({ onDone, onClose }) {
     const r = isLocal && localResults ? localResults[v] : apiResults[v];
     if (!r) return <span style={{fontSize:'0.8rem',color:'var(--text-muted)'}}>—</span>;
     if (r.skipped) {
-      const hasData = sbRows.some(row => row.vendor === v);
-      if (hasData) return <span style={{fontSize:'0.8rem',color:'var(--green)'}}>up to date</span>;
-      return (
+      const vRows = sbRows.filter(row => row.vendor === v);
+      if (vRows.length === 0) return (
         <span style={{fontSize:'0.8rem',color:'var(--text-muted)'}}>
           {r.reason}{' '}
           <a href={PORTALS[v]} target="_blank" rel="noopener noreferrer"
              style={{color:'var(--accent-light)',textDecoration:'none'}}>↗ portal</a>
         </span>
       );
+      const verified  = vRows.filter(row => row.expected != null && row.received != null && Math.abs(row.expected - row.received) <= 0.01).length;
+      const mismatched = vRows.filter(row => row.expected != null && row.received != null && Math.abs(row.expected - row.received) > 0.01).length;
+      const pending   = vRows.filter(row => row.expected != null && row.received == null).length;
+      const parts = [];
+      if (verified > 0)   parts.push(<span key="v" style={{color:'var(--green)'}}>{verified} verified</span>);
+      if (mismatched > 0) parts.push(<span key="m" style={{color:'var(--red)'}}>{mismatched} mismatch</span>);
+      if (pending > 0)    parts.push(<span key="p" style={{color:'var(--text-muted)'}}>{pending} pending</span>);
+      return <span style={{fontSize:'0.8rem'}}>{parts.reduce((acc, el, i) => i === 0 ? [el] : [...acc, ' · ', el], [])}</span>;
     }
     if (!r.ok) return (
       <span style={{fontSize:'0.8rem',color:'var(--red)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}
