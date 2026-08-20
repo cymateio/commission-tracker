@@ -303,6 +303,7 @@ function getStatus(e) {
   const rec = parseFloat(e.received) || 0;
   if (exp === 0 && rec > 0) return 'paid';
   if (Math.abs(exp - rec) < 0.01) return 'paid';
+  if (rec > 0 && exp > 0 && rec >= exp * 0.95) return 'paid'; // within 5% covers processor fees
   if (rec > 0 && exp > 0) return 'wrong';
   return 'missing';
 }
@@ -590,7 +591,7 @@ const VENDOR_META = {
   smartlead: { platform: 'Rewardful',       url: 'https://smartproducts.getrewardful.com/payouts',  payer: '521 code · PayPal',          capture: 'auto',   expSource: 'Payout = commission (auto)' },
   heyreach:  { platform: 'Tolt',            url: 'https://heyreach.tolt.io',                        payer: 'Tolt, Inc. · PayPal',        capture: 'auto',   expSource: 'Payout = commission (auto)' },
   icypeas:   { platform: 'FirstPromoter',   url: 'https://icypeas.firstpromoter.com',               payer: 'Not received yet',           capture: 'manual', expSource: 'Enter from dashboard' },
-  inboxkit:  { platform: 'Custom portal',   url: 'https://studio.inboxkit.com',                     payer: 'Not received yet',           capture: 'manual', expSource: 'Enter from dashboard' },
+  inboxkit:  { platform: 'Partner Studio',  url: 'https://studio.inboxkit.com/billing',             payer: 'Enrich Labs L.L.C-FZ · Mercury', capture: 'auto', expSource: 'Available for Payout on Partner Studio' },
   leadmagic: { platform: 'Dub.co Partners', url: 'https://partners.dub.co/programs/leadmagic',      payer: 'Not received yet',           capture: 'manual', expSource: 'Enter from dashboard' },
 };
 
@@ -893,6 +894,258 @@ function parsePasted(text) {
   }).filter(Boolean);
 }
 
+function SyncModal({ onDone, onClose }) {
+  const ORDER   = ['zapmail','smartlead','heyreach','icypeas','inboxkit','leadmagic'];
+  const NAMES   = { zapmail:'Zapmail', smartlead:'Smartlead', heyreach:'HeyReach', icypeas:'Icypeas', inboxkit:'Inboxkit', leadmagic:'LeadMagic' };
+  const COLORS  = { zapmail:'#818cf8', smartlead:'#34d399', heyreach:'#f472b6', icypeas:'#fb923c', inboxkit:'#38bdf8', leadmagic:'#a78bfa' };
+  const PORTALS = {
+    zapmail:   'https://affiliates.zapmail.ai/payouts',
+    smartlead: 'https://smartproducts.getrewardful.com/payouts',
+    heyreach:  'https://heyreach.tolt.io',
+    icypeas:   'https://icypeas.firstpromoter.com',
+    inboxkit:  'https://studio.inboxkit.com/billing',
+    leadmagic: 'https://partners.dub.co/programs/leadmagic',
+  };
+  const LOCAL_VENDORS = new Set(['zapmail', 'inboxkit']);
+
+  const [phase,        setPhase]       = useState('running');
+  const [apiResults,   setApiResults]  = useState({});
+  const [localResults, setLocalResults]= useState(null);
+  const [localOnline,  setLocalOnline] = useState(null);
+  const [discrepancies,setDiscreps]    = useState([]);
+  const [errMsg,       setErrMsg]      = useState('');
+  const [tick,         setTick]        = useState(0);
+
+  useEffect(() => {
+    if (phase !== 'running') return;
+    const id = setInterval(() => setTick(t => t + 1), 150);
+    return () => clearInterval(id);
+  }, [phase]);
+
+  useEffect(() => {
+    const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    async function run() {
+      try {
+        // Check local scraper availability
+        let localOk = false;
+        try {
+          const ping = await fetch('http://localhost:3001/ping', { signal: ctrl?.signal });
+          localOk = ping.ok;
+        } catch (_) {}
+        setLocalOnline(localOk);
+
+        // Run Vercel API and local scraper concurrently
+        const [apiSettled, localSettled] = await Promise.allSettled([
+          fetch('/api/sync', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}), ...(ctrl ? { signal: ctrl.signal } : {}),
+          }),
+          localOk ? fetch('http://localhost:3001/run', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}), ...(ctrl ? { signal: ctrl.signal } : {}),
+          }) : Promise.resolve(null),
+        ]);
+
+        // Process Vercel API response
+        if (apiSettled.status === 'rejected') throw new Error(apiSettled.reason?.message || 'API call failed');
+        const apiResp = apiSettled.value;
+        if (!apiResp.ok) {
+          const err = await apiResp.json().catch(() => ({}));
+          throw new Error(err.error || `Server returned ${apiResp.status}`);
+        }
+        const apiData = await apiResp.json();
+        setApiResults(apiData.results || {});
+        setDiscreps(apiData.discrepancies || []);
+
+        // Process local scraper response
+        if (localSettled.status === 'fulfilled' && localSettled.value) {
+          const localData = await localSettled.value.json().catch(() => null);
+          setLocalResults(localData?.results || null);
+        }
+
+        setPhase('done');
+        if (apiData.rows && apiData.rows.length > 0) onDone(apiData.rows);
+      } catch (e) {
+        if (e.name === 'AbortError') return;
+        setErrMsg(e.message || 'Unknown error');
+        setPhase('error');
+      }
+    }
+    run();
+    return () => { if (ctrl) ctrl.abort(); };
+  }, []);
+
+  const SPIN = ['⠋','⠙','⠹','⠸','⠼','⠴','⠦','⠧','⠇','⠏'];
+
+  function rowIcon(v) {
+    if (phase === 'running') return <span style={{color:'var(--accent-light)',fontFamily:'monospace',display:'inline-block',width:'14px'}}>{SPIN[tick % SPIN.length]}</span>;
+    const isLocal = LOCAL_VENDORS.has(v);
+    const r = isLocal && localResults ? localResults[v] : apiResults[v];
+    if (!r) return <span style={{color:'var(--text-muted)'}}>—</span>;
+    if (r.skipped) return <span style={{color:'var(--text-muted)'}}>↳</span>;
+    if (!r.ok) return <span style={{color:'var(--red)'}}>✗</span>;
+    return <span style={{color:'var(--green)'}}>✓</span>;
+  }
+
+  function rowDetail(v) {
+    if (phase === 'running') return <span style={{color:'var(--text-muted)',fontSize:'0.8rem'}}>syncing…</span>;
+    const isLocal = LOCAL_VENDORS.has(v);
+    if (isLocal && localOnline === false) {
+      return (
+        <span style={{fontSize:'0.8rem',color:'var(--text-muted)'}}>
+          local scraper offline ·{' '}
+          <a href={PORTALS[v]} target="_blank" rel="noopener noreferrer"
+             style={{color:'var(--accent-light)',textDecoration:'none'}}>↗ portal</a>
+        </span>
+      );
+    }
+    const r = isLocal && localResults ? localResults[v] : apiResults[v];
+    if (!r) return <span style={{fontSize:'0.8rem',color:'var(--text-muted)'}}>—</span>;
+    if (r.skipped) return (
+      <span style={{fontSize:'0.8rem',color:'var(--text-muted)'}}>
+        {r.reason}{' '}
+        <a href={PORTALS[v]} target="_blank" rel="noopener noreferrer"
+           style={{color:'var(--accent-light)',textDecoration:'none'}}>↗ portal</a>
+      </span>
+    );
+    if (!r.ok) return (
+      <span style={{fontSize:'0.8rem',color:'var(--red)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}
+            title={r.error}>{r.error}</span>
+    );
+    if (isLocal && r.rows) {
+      const verified = r.rows.filter(x => x.action === 'verified').length;
+      const updated  = r.updated || 0;
+      return (
+        <span style={{fontSize:'0.8rem',color:'var(--green)'}}>
+          {updated > 0 ? `${updated} updated` : 'up to date'}{verified > 0 ? ` · ${verified} verified` : ''}
+        </span>
+      );
+    }
+    const n = r.upserted || 0;
+    return <span style={{fontSize:'0.8rem',color:'var(--green)'}}>{n === 0 ? 'up to date' : `${n} row${n !== 1 ? 's' : ''} updated`}</span>;
+  }
+
+  const totalUpdated = Object.values(apiResults).reduce((s, r) => s + (r && r.upserted ? r.upserted : 0), 0)
+    + (localResults ? Object.values(localResults).reduce((s, r) => s + (r && r.updated ? r.updated : 0), 0) : 0);
+  const totalErrors  = Object.values(apiResults).filter(r => r && !r.ok && !r.skipped).length
+    + (localResults ? Object.values(localResults).filter(r => r && !r.ok).length : 0);
+  const isApiMissing = errMsg.includes('404') || errMsg.includes('SUPABASE_SERVICE_ROLE_KEY') || errMsg.includes('not configured');
+
+  const needsAttention = discrepancies.filter(d => d.type === 'mismatch').length;
+  const pendingPayments = discrepancies.filter(d => d.type === 'missing_received').length;
+
+  return (
+    <div className="overlay" onClick={e => e.target === e.currentTarget && phase !== 'running' && onClose()}>
+      <div className="modal" style={{maxWidth:'500px'}}>
+        <h2 style={{marginBottom:'20px',display:'flex',alignItems:'center',gap:'10px'}}>
+          <span style={{fontFamily:'monospace',fontSize:'1.1rem'}}>
+            {phase === 'running' ? SPIN[tick % SPIN.length] : phase === 'done' ? '✓' : '✗'}
+          </span>
+          {phase === 'running' ? 'Verifying commission data…' : phase === 'done' ? 'Verification complete' : 'Sync failed'}
+        </h2>
+
+        {phase === 'error' && (
+          <div style={{marginBottom:'16px',padding:'12px 14px',background:'rgba(239,68,68,0.08)',
+            border:'1px solid rgba(239,68,68,0.3)',borderRadius:'8px',fontSize:'0.86rem',color:'var(--red)'}}>
+            {isApiMissing
+              ? 'API function not reachable. Deploy api/sync.js and set SUPABASE_SERVICE_ROLE_KEY in Vercel → Settings → Environment Variables.'
+              : errMsg}
+          </div>
+        )}
+
+        {phase !== 'error' && (
+          <div style={{border:'1px solid var(--border)',borderRadius:'10px',overflow:'hidden',marginBottom:'16px'}}>
+            {ORDER.map((v, i) => (
+              <div key={v} style={{
+                display:'flex',alignItems:'center',gap:'10px',padding:'10px 14px',
+                borderBottom: i < ORDER.length - 1 ? '1px solid var(--border)' : 'none',
+                background: phase === 'done' && ((apiResults[v] && !apiResults[v].ok && !apiResults[v].skipped) || (localResults && localResults[v] && !localResults[v].ok))
+                  ? 'rgba(239,68,68,0.04)' : 'transparent',
+              }}>
+                <span style={{width:'8px',height:'8px',borderRadius:'50%',background:COLORS[v],flexShrink:0}} />
+                <span style={{width:'88px',fontWeight:600,fontSize:'0.88rem',flexShrink:0}}>{NAMES[v]}</span>
+                <span style={{width:'18px',textAlign:'center',flexShrink:0}}>{rowIcon(v)}</span>
+                <span style={{flex:1,minWidth:0}}>{rowDetail(v)}</span>
+                {phase === 'done' && LOCAL_VENDORS.has(v) && (
+                  <span style={{fontSize:'0.7rem',color:'var(--text-muted)',flexShrink:0,opacity:0.6}}>
+                    {localOnline ? 'local' : 'portal'}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {phase === 'done' && discrepancies.length > 0 && (
+          <div style={{marginBottom:'16px',border:'1px solid rgba(234,179,8,0.35)',borderRadius:'10px',overflow:'hidden'}}>
+            <div style={{padding:'8px 14px',background:'rgba(234,179,8,0.1)',borderBottom:'1px solid rgba(234,179,8,0.2)',
+              display:'flex',alignItems:'center',gap:'8px'}}>
+              <span style={{fontSize:'0.85rem',fontWeight:700,color:'#facc15'}}>
+                ⚠ {discrepancies.length} item{discrepancies.length !== 1 ? 's' : ''} need attention
+              </span>
+            </div>
+            {discrepancies.map((d, i) => (
+              <div key={i} style={{
+                padding:'8px 14px',
+                borderBottom: i < discrepancies.length - 1 ? '1px solid var(--border)' : 'none',
+                fontSize:'0.83rem',display:'flex',alignItems:'center',gap:'8px',flexWrap:'wrap',
+              }}>
+                <span style={{color:COLORS[d.vendor],fontWeight:600,minWidth:'70px'}}>{NAMES[d.vendor]}</span>
+                <span style={{color:'var(--text-muted)',minWidth:'60px'}}>{d.month}</span>
+                {d.type === 'mismatch' ? (
+                  <span>
+                    expected <strong>${d.expected.toFixed(2)}</strong> · received <strong>${d.received.toFixed(2)}</strong>{' '}
+                    <span style={{color: d.diff < 0 ? 'var(--red)' : 'var(--green)'}}>
+                      ({d.diff > 0 ? '+' : ''}{d.diff.toFixed(2)})
+                    </span>
+                  </span>
+                ) : (
+                  <span style={{color:'var(--text-muted)'}}>
+                    expected <strong style={{color:'var(--text)'}}>${d.expected.toFixed(2)}</strong> · payment pending
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {phase === 'done' && discrepancies.length === 0 && (
+          <div style={{marginBottom:'16px',padding:'10px 14px',fontSize:'0.86rem',
+            background:'rgba(74,222,128,0.08)',border:'1px solid rgba(74,222,128,0.3)',
+            borderRadius:'8px',color:'var(--green)'}}>
+            {totalUpdated > 0
+              ? `${totalUpdated} row${totalUpdated !== 1 ? 's' : ''} updated · All payments verified`
+              : 'All commissions verified · No discrepancies found'}
+          </div>
+        )}
+
+        {phase === 'done' && discrepancies.length > 0 && (totalUpdated > 0 || totalErrors > 0) && (
+          <div style={{marginBottom:'16px',padding:'8px 14px',fontSize:'0.83rem',color:'var(--text-muted)',
+            background:'var(--surface2)',borderRadius:'8px'}}>
+            {totalUpdated > 0 && <span>{totalUpdated} row{totalUpdated !== 1 ? 's' : ''} updated · </span>}
+            {needsAttention > 0 && <span style={{color:'var(--red)'}}>{needsAttention} mismatch{needsAttention !== 1 ? 'es' : ''} · </span>}
+            {pendingPayments > 0 && <span style={{color:'#facc15'}}>{pendingPayments} pending</span>}
+            {totalErrors > 0 && <span style={{color:'#facc15'}}> · {totalErrors} API key{totalErrors !== 1 ? 's' : ''} missing</span>}
+          </div>
+        )}
+
+        <div className="modal-actions" style={{marginTop:'8px'}}>
+          {phase === 'running' && (
+            <span style={{fontSize:'0.8rem',color:'var(--text-muted)'}}>
+              {localOnline === null ? 'Checking local scraper…' : localOnline ? 'Checking dashboards + APIs…' : 'Calling affiliate APIs…'}
+            </span>
+          )}
+          <button
+            className={phase !== 'running' ? 'btn-primary' : 'btn-secondary'}
+            onClick={onClose}
+            disabled={phase === 'running'}
+          >{phase === 'running' ? 'Verifying…' : 'Done'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PasteModal({ onParse, onClose }) {
   const [text, setText] = useState('');
   const rows = parsePasted(text);
@@ -989,6 +1242,7 @@ function App() {
   const [importing, setImporting]   = useState(false);
   const [showPaste, setShowPaste]   = useState(false);
   const [showPw, setShowPw]         = useState(false);
+  const [showSync, setShowSync]     = useState(false);
   const [highlightSince] = useState(() => { try { return localStorage.getItem('ct_seen') || ''; } catch (e) { return ''; } });
   function markSeen() { try { localStorage.setItem('ct_seen', new Date().toISOString()); } catch (e) {} }
   const [data, setData]       = useState({});
@@ -1012,15 +1266,14 @@ function App() {
 
   async function loadAll() {
     try {
-      const [rows, remRows] = await Promise.all([
-        sbGet('commissions'),
-        sbGet('reminders'),
-      ]);
+      const rows = await sbGet('commissions');
       setData(rowsToData(rows));
-      const r = {};
-      remRows.forEach(row => { r[row.vendor || row.vendor_id] = row.payment_day; });
-      setRem(r);
       markSeen();
+      sbGet('reminders').then(remRows => {
+        const r = {};
+        remRows.forEach(row => { r[row.vendor || row.vendor_id] = row.payment_day; });
+        setRem(r);
+      }).catch(() => {});
     } catch (e) {
       showToast('Failed to load data from database', 'error');
     }
@@ -1165,6 +1418,14 @@ function App() {
       <div className="header">
         <h1>Commission <span>Tracker</span></h1>
         <div className="header-right">
+          <button
+            onClick={() => setShowSync(true)}
+            style={{display:'inline-flex',alignItems:'center',gap:'6px',background:'var(--accent)',border:'1px solid var(--accent)',color:'#fff',padding:'8px 16px',borderRadius:'8px',cursor:'pointer',fontSize:'0.88rem',fontWeight:700,whiteSpace:'nowrap',transition:'background 0.15s'}}
+            onMouseEnter={e=>e.currentTarget.style.background='var(--accent-light)'}
+            onMouseLeave={e=>e.currentTarget.style.background='var(--accent)'}
+            title="Sync emails, check all vendor payments, and refresh dashboard">
+            ▶ Run Now
+          </button>
           <button className={`btn-action sync`} onClick={handleSync} disabled={syncing} title="Pull in the latest synced payments and update the dashboard.">
             {syncing ? '🔄 Refreshing…' : '🔄 Refresh'}
           </button>
@@ -1280,6 +1541,13 @@ function App() {
       {showPaste && <PasteModal onParse={d => { setShowPaste(false); setImportData(d); }} onClose={() => setShowPaste(false)} />}
 
       {importData && <ImportModal data={importData} onSave={handleImport} onClose={() => setImportData(null)} saving={importing} />}
+
+      {showSync && (
+        <SyncModal
+          onDone={rows => { setData(rowsToData(rows)); markSeen(); }}
+          onClose={() => { setShowSync(false); showToast('✓ Commission sync complete'); }}
+        />
+      )}
     </div>
   );
 }
