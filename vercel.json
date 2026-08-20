@@ -1,5 +1,11 @@
 {
   "version": 2,
-  "builds": [{ "src": "index.html", "use": "@vercel/static" }],
-  "routes": [{ "src": "/(.*)", "dest": "/index.html" }]
+  "builds": [
+    { "src": "api/sync.js", "use": "@vercel/node" },
+    { "src": "index.html", "use": "@vercel/static" }
+  ],
+  "routes": [
+    { "src": "/api/sync", "dest": "/api/sync.js" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ]
 }
