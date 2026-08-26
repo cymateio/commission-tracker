@@ -916,12 +916,29 @@ function SyncModal({ onDone, onClose }) {
   const [sbRows,       setSbRows]      = useState([]);
   const [errMsg,       setErrMsg]      = useState('');
   const [tick,         setTick]        = useState(0);
+  const [gmailReady,   setGmailReady]  = useState(false);
 
   useEffect(() => {
     if (phase !== 'running') return;
     const id = setInterval(() => setTick(t => t + 1), 150);
     return () => clearInterval(id);
   }, [phase]);
+
+  // 20 s after modal opens, re-read Supabase to pick up any rows the Gmail
+  // Apps Script wrote (triggered via window.open in the Run Now click handler)
+  useEffect(() => {
+    const id = setTimeout(async () => {
+      try {
+        const r = await fetch(
+          `${SB_URL}/rest/v1/commissions?select=vendor,month,expected,received&order=month.desc`,
+          { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } }
+        );
+        if (r.ok) setSbRows(await r.json());
+      } catch (_) {}
+      setGmailReady(true);
+    }, 20000);
+    return () => clearTimeout(id);
+  }, []);
 
   useEffect(() => {
     const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
@@ -1081,6 +1098,19 @@ function SyncModal({ onDone, onClose }) {
 
         {phase !== 'error' && (
           <div style={{border:'1px solid var(--border)',borderRadius:'10px',overflow:'hidden',marginBottom:'16px'}}>
+            <div style={{display:'flex',alignItems:'center',gap:'10px',padding:'10px 14px',borderBottom:'1px solid var(--border)'}}>
+              <span style={{width:'8px',height:'8px',borderRadius:'50%',background:'#ea580c',flexShrink:0}} />
+              <span style={{width:'88px',fontWeight:600,fontSize:'0.88rem',flexShrink:0}}>Gmail scan</span>
+              <span style={{width:'18px',textAlign:'center',flexShrink:0}}>
+                {gmailReady
+                  ? <span style={{color:'var(--green)'}}>✓</span>
+                  : <span style={{color:'var(--accent-light)',fontFamily:'monospace',display:'inline-block',width:'14px'}}>{SPIN[tick % SPIN.length]}</span>
+                }
+              </span>
+              <span style={{flex:1,fontSize:'0.8rem',color:'var(--text-muted)'}}>
+                {gmailReady ? 'receipts loaded' : 'scanning Gmail receipts…'}
+              </span>
+            </div>
             {ORDER.map((v, i) => (
               <div key={v} style={{
                 display:'flex',alignItems:'center',gap:'10px',padding:'10px 14px',
@@ -1445,7 +1475,10 @@ function App() {
         <h1>Commission <span>Tracker</span></h1>
         <div className="header-right">
           <button
-            onClick={() => setShowSync(true)}
+            onClick={() => {
+              try { window.open(SYNC_URL_DEFAULT, 'gmail_sync'); } catch (_) {}
+              setShowSync(true);
+            }}
             style={{display:'inline-flex',alignItems:'center',gap:'6px',background:'var(--accent)',border:'1px solid var(--accent)',color:'#fff',padding:'8px 16px',borderRadius:'8px',cursor:'pointer',fontSize:'0.88rem',fontWeight:700,whiteSpace:'nowrap',transition:'background 0.15s'}}
             onMouseEnter={e=>e.currentTarget.style.background='var(--accent-light)'}
             onMouseLeave={e=>e.currentTarget.style.background='var(--accent)'}
