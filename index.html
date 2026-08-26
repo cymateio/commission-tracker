@@ -917,6 +917,7 @@ function SyncModal({ onDone, onClose }) {
   const [errMsg,       setErrMsg]      = useState('');
   const [tick,         setTick]        = useState(0);
   const [gmailReady,   setGmailReady]  = useState(false);
+  const [gmailNewCount,setGmailNewCount]= useState(null); // null=polling, 0=no change, N=found
 
   useEffect(() => {
     if (phase !== 'running') return;
@@ -924,21 +925,44 @@ function SyncModal({ onDone, onClose }) {
     return () => clearInterval(id);
   }, [phase]);
 
-  // 20 s after modal opens, re-read Supabase to pick up any rows the Gmail
-  // Apps Script wrote (triggered via window.open in the Run Now click handler)
+  // Poll Supabase every 5 s (up to 90 s) to detect rows the Gmail Apps Script
+  // wrote after being triggered via window.open in the Run Now click handler.
+  // Detects both new rows and updates to existing rows (e.g. received amount).
   useEffect(() => {
-    const id = setTimeout(async () => {
+    const rowsHash = rows =>
+      rows.map(r => `${r.vendor}|${r.month}|${r.expected}|${r.received}`).sort().join(',');
+    let baseHash = null, baseCount = null, attempts = 0, timerId;
+    const MAX = 18; // 18 × 5 s = 90 s
+
+    async function poll() {
+      attempts++;
       try {
         const r = await fetch(
           `${SB_URL}/rest/v1/commissions?select=vendor,month,expected,received&order=month.desc`,
           { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } }
         );
-        if (r.ok) setSbRows(await r.json());
+        if (r.ok) {
+          const rows = await r.json();
+          const hash = rowsHash(rows);
+          if (baseHash === null) {
+            baseHash = hash; baseCount = rows.length;
+          } else if (hash !== baseHash) {
+            setSbRows(rows);
+            setGmailNewCount(Math.max(0, rows.length - baseCount));
+            setGmailReady(true);
+            onDone(rows);
+            return;
+          }
+          setSbRows(rows);
+        }
       } catch (_) {}
-      setGmailReady(true);
-    }, 20000);
-    return () => clearTimeout(id);
-  }, []);
+      if (attempts >= MAX) { setGmailNewCount(0); setGmailReady(true); return; }
+      timerId = setTimeout(poll, 5000);
+    }
+
+    timerId = setTimeout(poll, 5000);
+    return () => clearTimeout(timerId);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
@@ -1108,7 +1132,12 @@ function SyncModal({ onDone, onClose }) {
                 }
               </span>
               <span style={{flex:1,fontSize:'0.8rem',color:'var(--text-muted)'}}>
-                {gmailReady ? 'receipts loaded' : 'scanning Gmail receipts…'}
+                {gmailReady
+                  ? gmailNewCount > 0
+                    ? `${gmailNewCount} new receipt${gmailNewCount !== 1 ? 's' : ''} found`
+                    : 'no new receipts'
+                  : 'scanning Gmail receipts…'
+                }
               </span>
             </div>
             {ORDER.map((v, i) => (
