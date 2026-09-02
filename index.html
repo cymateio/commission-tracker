@@ -906,7 +906,7 @@ function SyncModal({ onDone, onClose }) {
     inboxkit:  'https://studio.inboxkit.com/billing',
     leadmagic: 'https://partners.dub.co/programs/leadmagic',
   };
-  const LOCAL_VENDORS = new Set(['zapmail', 'inboxkit']);
+  const LOCAL_VENDORS = new Set(['zapmail', 'heyreach', 'inboxkit', 'smartlead', 'icypeas', 'leadmagic']);
 
   const [phase,        setPhase]       = useState('running');
   const [apiResults,   setApiResults]  = useState({});
