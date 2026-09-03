@@ -427,15 +427,19 @@ async def check_leadmagic(pw):
             if s and any(kw in s.lower() for kw in ['earning', 'payout', 'paid', '$', 'balance', 'total', 'commission', '2026']):
                 log(f'    {s}')
 
-        m = (re.search(r'(?:pending\s+payout|earnings?|balance|available)\s*:?\s*\$?([\d,]+\.?\d*)', body, re.IGNORECASE)
-             or re.search(r'\$([\d,]+\.?\d*)\s*\n?(?:pending|earning|available)', body, re.IGNORECASE))
-        if m:
-            amount = round(float(m.group(1).replace(',', '')), 2)
-            log(f'  Found balance: ${amount:.2f}')
-            set_expected('leadmagic', datetime.now().strftime('%Y-%m'), amount)
+        if re.search(r'no earnings|no payouts|no commissions', body, re.IGNORECASE):
+            log('  → No earnings on LeadMagic yet (expected)')
+            _results['leadmagic']['rows'].append({'month': datetime.now().strftime('%Y-%m'), 'expected': 0, 'received': None, 'action': 'verified'})
         else:
-            _results['leadmagic']['error'] = 'Could not parse balance'
-            log('  ! Could not parse balance')
+            m = (re.search(r'(?:pending\s+payout|earnings?|balance|available)\s*:?\s*\$?([\d,]+\.?\d*)', body, re.IGNORECASE)
+                 or re.search(r'\$([\d,]+\.?\d*)\s*\n?(?:pending|earning|available)', body, re.IGNORECASE))
+            if m:
+                amount = round(float(m.group(1).replace(',', '')), 2)
+                log(f'  Found balance: ${amount:.2f}')
+                set_expected('leadmagic', datetime.now().strftime('%Y-%m'), amount)
+            else:
+                _results['leadmagic']['error'] = 'Could not parse balance'
+                log('  ! Could not parse balance')
 
         log(f"  → {_results['leadmagic']['updated']} rows updated")
     except Exception as e:
@@ -471,4 +475,5 @@ async def main():
     else:
         print('\n=== Done. Check above for any amounts needing manual review. ===')
 
-asyncio.run(main())
+if __name__ == '__main__':
+    asyncio.run(main())

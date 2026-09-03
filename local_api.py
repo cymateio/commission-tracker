@@ -2,17 +2,19 @@
 """
 Local scraper API — http://localhost:3001
 Used by the commission dashboard's 'Run Now' button for Playwright-based vendors
-(Zapmail, Inboxkit) that have no public affiliate API.
+that have no public affiliate API.
 
 Start: python3 local_api.py
 The LaunchAgent plist starts this automatically at login.
 """
-import json, subprocess, sys
+import io, json, runpy, sys
+from contextlib import redirect_stdout
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 PORT = 3001
-DIR = Path(__file__).parent
+DIR  = Path(__file__).parent
+SCRIPT = str(DIR / 'check_all_vendors.py')
 
 class Handler(BaseHTTPRequestHandler):
     def _send(self, data, status=200):
@@ -43,22 +45,25 @@ class Handler(BaseHTTPRequestHandler):
         if self.path != '/run':
             self._send({'error': 'Not found'}, 404)
             return
+
+        # Run check_all_vendors.py in-process to avoid macOS Full Disk Access
+        # restrictions that block the CLI python3 subprocess from ~/Documents.
+        old_argv = sys.argv[:]
+        sys.argv = [SCRIPT, '--json']
+        buf = io.StringIO()
+        result = None
         try:
-            proc = subprocess.run(
-                [sys.executable, str(DIR / 'check_all_vendors.py'), '--json'],
-                capture_output=True, text=True, timeout=180, cwd=str(DIR),
-            )
-            try:
-                result = json.loads(proc.stdout)
-            except json.JSONDecodeError:
-                result = {
-                    'ok': False,
-                    'error': (proc.stderr or 'Script produced no JSON output')[:500],
-                }
-        except subprocess.TimeoutExpired:
-            result = {'ok': False, 'error': 'Scraper timed out after 3 minutes'}
+            with redirect_stdout(buf):
+                runpy.run_path(SCRIPT, run_name='__main__')
+            output = buf.getvalue().strip()
+            result = json.loads(output)
+        except json.JSONDecodeError:
+            result = {'ok': False, 'error': f'Script produced invalid JSON: {buf.getvalue()[:300]}'}
         except Exception as exc:
             result = {'ok': False, 'error': str(exc)}
+        finally:
+            sys.argv = old_argv
+
         self._send(result)
 
     def log_message(self, *a):
