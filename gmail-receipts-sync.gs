@@ -15,7 +15,7 @@ const SB_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 
 const SB_URL   = 'https://ygotkwhvydmisrkyofec.supabase.co';
 const OWNER_ID = '1e86ded9-ad34-431d-b60f-59ad5d80d754';        // admin@cymate.io
-const EXPECTED_EQUALS_RECEIVED = { smartlead: true }; // payout = commission
+const EXPECTED_EQUALS_RECEIVED = { smartlead: true, inboxkit: true }; // payout = commission
 // These vendors are managed via affiliate dashboard scraper — Gmail sync only fills received if row already exists
 const DASHBOARD_MANAGED = { zapmail: true, heyreach: true };
 

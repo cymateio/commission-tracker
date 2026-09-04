@@ -642,7 +642,7 @@ const VENDOR_META = {
   smartlead: { platform: 'Rewardful',       url: 'https://smartproducts.getrewardful.com/payouts',  payer: '521 code · PayPal',          capture: 'auto',   expSource: 'Payout = commission (auto)' },
   heyreach:  { platform: 'Tolt',            url: 'https://heyreach.tolt.io',                        payer: 'Tolt, Inc. · PayPal',        capture: 'auto',   expSource: 'Payout = commission (auto)' },
   icypeas:   { platform: 'FirstPromoter',   url: 'https://icypeas.firstpromoter.com',               payer: 'Not received yet',           capture: 'manual', expSource: 'Enter from dashboard' },
-  inboxkit:  { platform: 'Partner Studio',  url: 'https://studio.inboxkit.com/billing',             payer: 'Enrich Labs L.L.C-FZ · Mercury', capture: 'auto', expSource: 'Available for Payout on Partner Studio' },
+  inboxkit:  { platform: 'Partner Studio',  url: 'https://studio.inboxkit.com/billing',             payer: 'Enrich Labs L.L.C-FZ · Mercury', capture: 'gmail', expSource: 'Mercury receipt from Enrich Labs (Gmail-managed)' },
   leadmagic: { platform: 'Dub.co Partners', url: 'https://partners.dub.co/programs/leadmagic',      payer: 'Not received yet',           capture: 'manual', expSource: 'Enter from dashboard' },
 };
 
@@ -662,8 +662,8 @@ function VendorsTab({ data, year, onPaste, sessions, localOnline, vendorRunning,
     return { ...v, meta: VENDOR_META[v.id], exp, rec, confirmed, lastDate };
   }), [data, year]);
 
-  // Smartlead is gmail-managed (no scraper session needed)
-  const GMAIL_MANAGED = new Set(['smartlead']);
+  // Smartlead + Inboxkit are gmail-managed (no scraper session needed)
+  const GMAIL_MANAGED = new Set(['smartlead', 'inboxkit']);
 
   return (
     <div>
