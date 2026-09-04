@@ -267,105 +267,191 @@ async def check_inboxkit(pw):
         browser = await pw.chromium.launch(headless=True)
         ctx = await browser.new_context(storage_state=session_path('inboxkit'))
         page = await ctx.new_page()
+
+        # Intercept API responses to get raw financial data
+        api_data = {}
+        async def on_response(resp):
+            url = resp.url
+            ct = resp.headers.get('content-type', '')
+            if 'json' in ct and any(k in url for k in [
+                '/api/', 'billing', 'earning', 'payout', 'revenue', 'transaction',
+                'wallet', 'balance', 'payment',
+            ]):
+                try:
+                    api_data[url] = await resp.json()
+                except Exception:
+                    pass
+        page.on('response', on_response)
+
         await page.goto('https://studio.inboxkit.com/billing', wait_until='domcontentloaded', timeout=25000)
         try:
             await page.wait_for_load_state('networkidle', timeout=10000)
         except Exception:
             pass
-        await page.wait_for_timeout(5000)
+        await page.wait_for_timeout(4000)
 
-        # Use JS to extract labeled dollar values directly from the DOM — avoids
-        # whitespace/ordering issues with inner_text() on React-rendered pages.
-        labeled = await page.evaluate("""() => {
-            const results = {};
-            // Walk every element; when we find a text node with a dollar amount,
-            // record it along with the nearest sibling/parent label text.
-            document.querySelectorAll('*').forEach(el => {
-                const txt = (el.innerText || '').trim();
-                const amtMatch = txt.match(/^\\$?(\\d[\\d,]*\\.\\d{2})$/);
-                if (!amtMatch) return;
-                // Look for a label in sibling or parent text
-                const parent = el.closest('[class]') || el.parentElement;
-                const parentTxt = parent ? (parent.innerText || '').trim() : '';
-                // Grab any text line that doesn't look like a dollar amount as the label
-                const lines = parentTxt.split('\\n').map(l => l.trim()).filter(l => l && !l.match(/^\\$?[\\d,]+\\.\\d{2}$/));
-                const label = lines[0] || 'unknown';
-                results[label.toLowerCase().replace(/\\s+/g, '_')] = amtMatch[1].replace(/,/g, '');
-            });
-            return results;
-        }""")
+        # Click "All Time" tab to load comprehensive historical data
+        try:
+            all_time_btn = page.get_by_text('All Time', exact=True)
+            if await all_time_btn.count() > 0:
+                await all_time_btn.first.click()
+                await page.wait_for_timeout(3000)
+                log('  Clicked All Time tab')
+        except Exception:
+            pass
+
+        await page.wait_for_timeout(2000)
+
+        # Log all API calls captured
+        for url, data in api_data.items():
+            log(f'  API hit: {url}')
+            log(f'    data: {str(data)[:300]}')
+
+        # Get full page text as fallback
+        body = await page.locator('body').inner_text()
         await browser.close()
 
-        log(f'  DOM values: {labeled}')
+        log('  Page text (financial lines):')
+        for line in body.split('\n'):
+            s = line.strip()
+            if s and any(kw in s.lower() for kw in ['total', 'paid', 'payout', 'net', 'earn', 'avail', 'gross', '$', 'revenue']):
+                log(f'    {s}')
 
-        def _find(keys):
-            for k in keys:
-                for label, val in labeled.items():
-                    if k in label:
-                        return round(float(val), 2)
+        # ── Extract from API data first ──────────────────────────────────────
+        total_paid = None
+        available  = None
+        net_earn   = None
+        monthly_data = {}  # period -> amount
+
+        def _dig(obj, keys):
+            """Recursively search a dict/list for any of the given keys."""
+            if isinstance(obj, dict):
+                for k, v in obj.items():
+                    kl = k.lower().replace('_', ' ').replace('-', ' ')
+                    for target in keys:
+                        if target in kl and isinstance(v, (int, float)):
+                            return round(float(v), 2)
+                    result = _dig(v, keys)
+                    if result is not None:
+                        return result
+            elif isinstance(obj, list):
+                for item in obj:
+                    result = _dig(item, keys)
+                    if result is not None:
+                        return result
             return None
 
-        total_paid = _find(['total_paid_out', 'total_paid'])
-        available   = _find(['available_for_payout', 'available'])
-        net_earning = _find(['net_earning'])
+        for url, data in api_data.items():
+            tp = _dig(data, ['total paid out', 'total paid', 'paid out', 'totalpaid'])
+            if tp is not None and total_paid is None:
+                total_paid = tp
+                log(f'  API total_paid: ${total_paid:.2f} from {url}')
 
-        log(f'  total_paid={total_paid}  available={available}  net_earnings={net_earning}')
+            av = _dig(data, ['available for payout', 'available payout', 'available balance', 'availableforpayout'])
+            if av is not None and available is None:
+                available = av
+                log(f'  API available: ${available:.2f} from {url}')
 
-        if total_paid is None and available is None and net_earning is None:
-            # Fall back to plain inner_text as last resort
-            browser2 = await pw.chromium.launch(headless=True)
-            ctx2 = await browser2.new_context(storage_state=session_path('inboxkit'))
-            page2 = await ctx2.new_page()
-            await page2.goto('https://studio.inboxkit.com/billing', wait_until='domcontentloaded', timeout=20000)
-            await page2.wait_for_timeout(5000)
-            body = await page2.locator('body').inner_text()
-            await browser2.close()
+            ne = _dig(data, ['net earnings', 'net earning', 'netearning', 'net revenue'])
+            if ne is not None and net_earn is None:
+                net_earn = ne
+                log(f'  API net_earn: ${net_earn:.2f} from {url}')
+
+            # Look for monthly breakdowns in array data
+            if isinstance(data, list):
+                for item in data:
+                    if isinstance(item, dict):
+                        month_key = None
+                        for k in ['month', 'period', 'date', 'created_at', 'paidAt', 'paid_at']:
+                            if k in item:
+                                try:
+                                    from datetime import datetime as _dt
+                                    raw = str(item[k])[:10]
+                                    mk = _dt.strptime(raw, '%Y-%m').strftime('%Y-%m') if len(raw) == 7 \
+                                         else _dt.strptime(raw, '%Y-%m-%d').strftime('%Y-%m')
+                                    if mk >= '2026-01':
+                                        month_key = mk
+                                except Exception:
+                                    pass
+                                break
+                        if month_key:
+                            amt = _dig(item, ['amount', 'net', 'earnings', 'revenue', 'payout'])
+                            if amt is not None:
+                                monthly_data[month_key] = monthly_data.get(month_key, 0.0) + amt
+
+        # ── Fall back to page text if API data didn't yield values ───────────
+        if total_paid is None:
             m = re.search(r'Total\s+Paid\s+Out\s*\$?\s*([\d,]+\.\d{2})', body, re.IGNORECASE)
             if m:
                 total_paid = round(float(m.group(1).replace(',', '')), 2)
-                log(f'  Fallback inner_text total_paid={total_paid}')
-            else:
-                preview = '\n'.join(l.strip() for l in body.split('\n') if l.strip())[:500]
-                _results['inboxkit']['error'] = f'Could not read billing page — session may be expired. Page: {preview}'
-                log('  ! Could not parse billing page via either method')
-                return
+                log(f'  Text total_paid: ${total_paid:.2f}')
 
-        # Use net earnings as expected if total_paid unavailable, else total_paid
-        dashboard_amount = total_paid if total_paid is not None else net_earning
+        if available is None:
+            m = (re.search(r'\$([\d,]+\.\d{2})\s*\n\s*Available', body, re.IGNORECASE)
+                 or re.search(r'Available(?:\s+for\s+Payout)?\s*\$?\s*([\d,]+\.\d{2})', body, re.IGNORECASE))
+            if m:
+                available = round(float(m.group(1).replace(',', '')), 2)
+                log(f'  Text available: ${available:.2f}')
 
-        # Sum all received amounts for Inboxkit from Supabase (from Gmail receipts)
-        all_months = _cache.get('inboxkit', {})
-        total_received = round(sum(float(r.get('received') or 0) for r in all_months.values()), 2)
-        log(f'  Total received in Supabase: ${total_received:.2f}')
+        if net_earn is None:
+            m = re.search(r'Net\s+Earnings?\s*\$?\s*([\d,]+\.\d{2})', body, re.IGNORECASE)
+            if m:
+                net_earn = round(float(m.group(1).replace(',', '')), 2)
+                log(f'  Text net_earn: ${net_earn:.2f}')
 
-        period = datetime.now().strftime('%Y-%m')
-        if dashboard_amount is not None:
-            set_expected('inboxkit', period, dashboard_amount)
+        if total_paid is None and available is None and net_earn is None:
+            preview = '\n'.join(l.strip() for l in body.split('\n') if l.strip())[:600]
+            _results['inboxkit']['error'] = (
+                'Could not read Inboxkit billing data — session may be expired.\n'
+                f'Page preview: {preview}'
+            )
+            log('  ! Could not parse billing page via any method')
+            return
 
-            if abs(dashboard_amount - total_received) <= 0.01:
-                status, reason = 'matched', None
-            elif total_received == 0:
-                status = 'unable_to_verify'
-                reason = 'No receipts found in Gmail for Inboxkit'
-            else:
-                diff = round(total_received - dashboard_amount, 2)
-                status = 'discrepancy'
-                reason = f'Dashboard: ${dashboard_amount:.2f} | Gmail receipts: ${total_received:.2f} | Diff: ${diff:+.2f}'
+        # ── Compare & record ─────────────────────────────────────────────────
+        # If we got per-month data from API, record each month individually
+        if monthly_data:
+            log(f'  Monthly API data: {monthly_data}')
+            for period, amount in monthly_data.items():
+                set_expected('inboxkit', period, amount)
+                row = _compare_and_record('inboxkit', period, amount)
+                _results['inboxkit']['rows'].append(row)
+                log(f"  {period}: dashboard=${amount:.2f} status={row['status']}")
+        else:
+            # No per-month breakdown available — compare totals:
+            # Total Paid Out (dashboard) vs sum of all Gmail receipts in Supabase
+            all_months = _cache.get('inboxkit', {})
+            total_received = round(sum(float(r.get('received') or 0) for r in all_months.values()), 2)
+            dashboard_amount = total_paid if total_paid is not None else net_earn
+            log(f'  Total paid out: ${dashboard_amount}  |  Total received: ${total_received:.2f}')
 
-            _write_check_history('inboxkit', period, dashboard_amount, total_received or None, status, reason)
-            _results['inboxkit']['rows'].append({
-                'period': period,
-                'dashboard_amount': dashboard_amount,
-                'received_amount': total_received if total_received > 0 else None,
-                'status': status,
-                'difference': round(total_received - dashboard_amount, 2) if total_received > 0 else None,
-                'reason': reason,
-            })
-            log(f"  {period}: dashboard=${dashboard_amount:.2f} received=${total_received:.2f} status={status}")
+            period = datetime.now().strftime('%Y-%m')
+            if dashboard_amount is not None:
+                set_expected('inboxkit', period, dashboard_amount)
 
-        if available:
+                if abs(dashboard_amount - total_received) <= 0.01:
+                    status, reason = 'matched', None
+                elif total_received == 0:
+                    status = 'unable_to_verify'
+                    reason = 'No receipts found in Gmail for Inboxkit'
+                else:
+                    diff = round(total_received - dashboard_amount, 2)
+                    status = 'discrepancy'
+                    reason = f'Total paid out: ${dashboard_amount:.2f} | Gmail receipts: ${total_received:.2f} | Diff: ${diff:+.2f}'
+
+                _write_check_history('inboxkit', period, dashboard_amount, total_received or None, status, reason)
+                _results['inboxkit']['rows'].append({
+                    'period': period,
+                    'dashboard_amount': dashboard_amount,
+                    'received_amount': total_received if total_received > 0 else None,
+                    'status': status,
+                    'difference': round(total_received - dashboard_amount, 2) if total_received > 0 else None,
+                    'reason': reason,
+                })
+                log(f"  {period}: total_paid=${dashboard_amount:.2f} received=${total_received:.2f} status={status}")
+
+        if available is not None:
             _results['inboxkit']['available_for_payout'] = available
-            log(f'  Available for Payout: ${available:.2f} (pending withdrawal)')
 
     except Exception as e:
         _results['inboxkit'].update({'ok': False, 'error': str(e)})
