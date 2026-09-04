@@ -161,6 +161,31 @@
     @media (max-width: 700px) {
       th:nth-child(5), td:nth-child(5), th:nth-child(7), td:nth-child(7) { display: none; }
     }
+
+    /* ── Vendor login / run status ── */
+    .session-tag { display: inline-flex; align-items: center; gap: 5px; font-size: 0.7rem; font-weight: 600; padding: 3px 9px; border-radius: 20px; letter-spacing: 0.02em; }
+    .session-tag.logged-in { background: rgba(74,222,128,0.12); color: var(--green); }
+    .session-tag.login-req { background: rgba(96,165,250,0.08); color: var(--text-muted); border: 1px solid var(--border); }
+    .session-tag.sess-exp  { background: rgba(251,191,36,0.08); color: var(--yellow); }
+    .session-tag.running   { background: rgba(108,99,255,0.12); color: var(--accent-light); }
+    .session-tag.verified  { background: rgba(74,222,128,0.12); color: var(--green); }
+    .session-tag.mismatch  { background: rgba(248,113,113,0.12); color: var(--red); }
+    .session-tag.error     { background: rgba(248,113,113,0.12); color: var(--red); }
+    .session-tag.gmail-mgd { background: rgba(108,99,255,0.1); color: var(--accent-light); }
+    .btn-login { background: none; border: 1px solid var(--border); color: var(--text-muted); padding: 6px 13px; border-radius: 7px; cursor: pointer; font-size: 0.82rem; transition: all 0.15s; white-space: nowrap; }
+    .btn-login:hover:not(:disabled) { border-color: var(--accent); color: var(--accent-light); }
+    .btn-login:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-run-now { background: var(--accent); border: 1px solid var(--accent); color: #fff; padding: 6px 13px; border-radius: 7px; cursor: pointer; font-size: 0.82rem; font-weight: 600; transition: all 0.15s; white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; }
+    .btn-run-now:hover:not(:disabled) { background: var(--accent-light); border-color: var(--accent-light); }
+    .btn-run-now:disabled { opacity: 0.4; cursor: not-allowed; }
+    .run-result { font-size: 0.78rem; margin-top: 10px; padding: 8px 11px; border-radius: 7px; line-height: 1.5; }
+    .run-result.verified { background: rgba(74,222,128,0.08); color: var(--green); border: 1px solid rgba(74,222,128,0.2); }
+    .run-result.mismatch { background: rgba(248,113,113,0.08); color: var(--red); border: 1px solid rgba(248,113,113,0.2); }
+    .run-result.unable   { background: rgba(251,191,36,0.08); color: var(--yellow); border: 1px solid rgba(251,191,36,0.2); }
+    .run-result.error    { background: rgba(248,113,113,0.06); color: var(--red); border: 1px solid rgba(248,113,113,0.2); }
+    @keyframes runSpin { to { transform: rotate(360deg); } }
+    .run-spin { width: 13px; height: 13px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: runSpin 0.7s linear infinite; flex-shrink: 0; }
+    .scraper-offline-note { font-size: 0.73rem; color: var(--text-muted); background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; margin-bottom: 10px; }
   </style>
 </head>
 <body>
@@ -584,6 +609,32 @@ function TrendsView({ data }) {
   );
 }
 
+// ── Vendor login modal ────────────────────────────────────────
+function VendorLoginModal({ vendor, url, onSave, onCancel }) {
+  return (
+    <div className="overlay" onClick={e => e.target === e.currentTarget && onCancel()}>
+      <div className="modal" style={{maxWidth:'460px'}}>
+        <h2>🔑 Log in to <span style={{color:vendor.color}}>{vendor.name}</span></h2>
+        <p style={{fontSize:'0.86rem',color:'var(--text-muted)',lineHeight:'1.6',marginBottom:'14px'}}>
+          A Chrome window has opened at the link below. Complete login including any
+          verification codes or MFA, then click <strong style={{color:'var(--text)'}}>Save Session</strong>.
+        </p>
+        <div style={{background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:'8px',
+          padding:'9px 13px',marginBottom:'14px',fontSize:'0.8rem',color:'var(--blue)',wordBreak:'break-all'}}>
+          {url}
+        </div>
+        <p style={{fontSize:'0.75rem',color:'var(--text-muted)',marginBottom:'20px',lineHeight:1.5}}>
+          ⚠ Do not close the Chrome window before saving the session.
+        </p>
+        <div className="modal-actions">
+          <button className="btn-secondary" onClick={onCancel}>Cancel</button>
+          <button className="btn-primary" onClick={onSave}>💾 Save Session</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Vendors reference ─────────────────────────────────────────
 // capture: how RECEIVED gets in. expSource: how EXPECTED (dashboard figure) gets in.
 const VENDOR_META = {
@@ -595,7 +646,7 @@ const VENDOR_META = {
   leadmagic: { platform: 'Dub.co Partners', url: 'https://partners.dub.co/programs/leadmagic',      payer: 'Not received yet',           capture: 'manual', expSource: 'Enter from dashboard' },
 };
 
-function VendorsTab({ data, year, onPaste }) {
+function VendorsTab({ data, year, onPaste, sessions, localOnline, vendorRunning, loginVendor, vendorResults, onLogin, onSaveSession, onCancelLogin, onRunVendor }) {
   const rows = useMemo(() => VENDORS.map(v => {
     let exp = 0, rec = 0, confirmed = 0, lastDate = null;
     for (let i = 0; i < 12; i++) {
@@ -611,47 +662,130 @@ function VendorsTab({ data, year, onPaste }) {
     return { ...v, meta: VENDOR_META[v.id], exp, rec, confirmed, lastDate };
   }), [data, year]);
 
+  // Smartlead is gmail-managed (no scraper session needed)
+  const GMAIL_MANAGED = new Set(['smartlead']);
+
   return (
     <div>
       <p style={{color:'var(--text-muted)',fontSize:'0.88rem',lineHeight:'1.6',maxWidth:'680px',marginBottom:'22px'}}>
-        Your source-of-truth checklist. For each vendor, open its dashboard and confirm the numbers there match
-        what's stored here. <strong style={{color:'var(--text)'}}>Auto</strong> vendors are captured from your PayPal/Wise
-        emails automatically; <strong style={{color:'var(--text)'}}>Manual</strong> ones you enter from the dashboard via <em>Edit</em>.
+        Log in to each vendor's affiliate dashboard, then use Run Now to automatically pull commission data,
+        check Gmail receipts, and verify the amounts match. Login and Run Now are separate actions.
       </p>
+
+      {localOnline === false && (
+        <div className="scraper-offline-note">
+          ⚠ Local scraper is offline — Login and Run Now are unavailable.
+          Start it with: <code style={{background:'var(--surface)',padding:'1px 7px',borderRadius:'4px',color:'var(--accent-light)'}}>python3 local_api.py</code>
+        </div>
+      )}
 
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(320px,1fr))',gap:'16px'}}>
         {rows.map(v => {
           const auto = v.meta.capture === 'auto';
+          const isGmail = GMAIL_MANAGED.has(v.id);
+          const sess = sessions[v.id] || {};
+          const sessionOk    = !isGmail && sess.exists && !sess.stale;
+          const sessionStale = !isGmail && sess.exists && sess.stale;
+          const noSession    = !isGmail && !sess.exists;
+          const isRunning    = vendorRunning === v.id;
+          const loginOpen    = loginVendor === v.id;
+          const result       = vendorResults[v.id] || null;
+
+          let sessionLabel, sessionClass;
+          if (isGmail)           { sessionLabel = '📧 Gmail Managed'; sessionClass = 'gmail-mgd'; }
+          else if (isRunning)    { sessionLabel = '⠋ Checking…';      sessionClass = 'running'; }
+          else if (result?.statusClass === 'verified')  { sessionLabel = '✓ Verified';     sessionClass = 'verified'; }
+          else if (result?.statusClass === 'mismatch')  { sessionLabel = '⚠ Mismatch';     sessionClass = 'mismatch'; }
+          else if (result?.statusClass === 'error')     { sessionLabel = '✗ Error';         sessionClass = 'error'; }
+          else if (sessionOk)    { sessionLabel = '● Logged In';       sessionClass = 'logged-in'; }
+          else if (sessionStale) { sessionLabel = '⚠ Session Expired'; sessionClass = 'sess-exp'; }
+          else                   { sessionLabel = '○ Login Required';  sessionClass = 'login-req'; }
+
+          const cardBorder = result?.statusClass === 'mismatch' ? '1px solid rgba(248,113,113,0.4)'
+            : result?.statusClass === 'verified' ? '1px solid rgba(74,222,128,0.3)'
+            : '1px solid var(--border)';
+
           return (
-            <div key={v.id} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'12px',padding:'20px'}}>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'14px'}}>
+            <div key={v.id} style={{background:'var(--surface)',border:cardBorder,borderRadius:'12px',padding:'20px'}}>
+              {/* Header */}
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px'}}>
                 <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
                   <span style={{width:'10px',height:'10px',borderRadius:'50%',background:v.color,display:'inline-block'}} />
                   <span style={{fontWeight:700,fontSize:'1rem'}}>{v.name}</span>
                 </div>
-                <span style={{fontSize:'0.7rem',fontWeight:700,padding:'3px 9px',borderRadius:'12px',
-                  background: auto ? 'rgba(74,222,128,0.12)' : 'rgba(251,191,36,0.12)',
-                  color: auto ? 'var(--green)' : 'var(--yellow)'}}>
-                  {auto ? '⚡ Auto' : '✎ Manual'}
-                </span>
+                <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
+                  <span className={`session-tag ${sessionClass}`}>{sessionLabel}</span>
+                  <span style={{fontSize:'0.7rem',fontWeight:700,padding:'3px 9px',borderRadius:'12px',
+                    background: auto ? 'rgba(74,222,128,0.12)' : 'rgba(251,191,36,0.12)',
+                    color: auto ? 'var(--green)' : 'var(--yellow)'}}>
+                    {auto ? '⚡ Auto' : '✎ Manual'}
+                  </span>
+                </div>
               </div>
 
-              <div style={{fontSize:'0.78rem',color:'var(--text-muted)',lineHeight:'1.7',marginBottom:'14px'}}>
+              {/* Platform info */}
+              <div style={{fontSize:'0.78rem',color:'var(--text-muted)',lineHeight:'1.7',marginBottom:'12px'}}>
                 <div><span style={{color:'var(--text)'}}>{v.meta.platform}</span></div>
                 <div>Pays as: <span style={{color:'var(--text)'}}>{v.meta.payer}</span></div>
-                <div>Expected source: <span style={{color:'var(--text)'}}>{v.meta.expSource}</span></div>
               </div>
 
+              {/* Stats */}
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'8px',background:'var(--surface2)',borderRadius:'8px',padding:'12px',marginBottom:'14px'}}>
                 <div><div style={{fontSize:'0.68rem',color:'var(--text-muted)',textTransform:'uppercase'}}>Expected</div><div style={{fontWeight:700,fontSize:'0.92rem',color:'var(--blue)'}}>{v.exp?fmtCurrency(v.exp):'—'}</div></div>
                 <div><div style={{fontSize:'0.68rem',color:'var(--text-muted)',textTransform:'uppercase'}}>Received</div><div style={{fontWeight:700,fontSize:'0.92rem',color:'var(--green)'}}>{v.rec?fmtCurrency(v.rec):'—'}</div></div>
                 <div><div style={{fontSize:'0.68rem',color:'var(--text-muted)',textTransform:'uppercase'}}>Confirmed</div><div style={{fontWeight:700,fontSize:'0.92rem'}}>{v.confirmed}/12</div></div>
               </div>
 
-              <a href={v.meta.url} target="_blank" rel="noopener noreferrer"
-                 className="btn-edit" style={{display:'block',textAlign:'center',textDecoration:'none'}}>
-                Open dashboard to verify ↗
-              </a>
+              {/* Login / Run Now */}
+              {isGmail ? (
+                <div style={{fontSize:'0.78rem',color:'var(--text-muted)',padding:'8px 0'}}>
+                  Commission data is automatically pulled from Gmail receipts. Use the global Sync Gmail button to update.
+                </div>
+              ) : (
+                <div style={{borderTop:'1px solid var(--border)',paddingTop:'12px'}}>
+                  <div style={{display:'flex',gap:'8px',flexWrap:'wrap',marginBottom: result ? '0' : '0'}}>
+                    {!loginOpen ? (
+                      <button className="btn-login" onClick={() => onLogin(v.id)}
+                        disabled={isRunning || !localOnline}
+                        title={!localOnline ? 'Start the local scraper first' : ''}>
+                        🔑 {noSession ? 'Login' : 'Re-Login'}
+                      </button>
+                    ) : (
+                      <button className="btn-primary" style={{padding:'6px 13px',fontSize:'0.82rem'}}
+                        onClick={onSaveSession}>
+                        💾 Save Session
+                      </button>
+                    )}
+                    <button className="btn-run-now" onClick={() => onRunVendor(v.id)}
+                      disabled={noSession || isRunning || loginOpen || !localOnline}
+                      title={noSession ? 'Log in first' : !localOnline ? 'Start the local scraper first' : ''}>
+                      {isRunning ? <><span className="run-spin" />Checking…</> : '▶ Run Now'}
+                    </button>
+                    {sessionOk && !loginOpen && (
+                      <span style={{fontSize:'0.72rem',color:'var(--green)',alignSelf:'center',opacity:.8}}>
+                        Session {sess.age_days}d old
+                      </span>
+                    )}
+                    {sessionStale && !loginOpen && (
+                      <span style={{fontSize:'0.72rem',color:'var(--yellow)',alignSelf:'center'}}>
+                        May be expired ({sess.age_days}d)
+                      </span>
+                    )}
+                  </div>
+                  {result && (
+                    <div className={`run-result ${result.statusClass}`}>
+                      {result.message}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div style={{marginTop:'10px'}}>
+                <a href={v.meta.url} target="_blank" rel="noopener noreferrer"
+                   className="btn-edit" style={{display:'block',textAlign:'center',textDecoration:'none',fontSize:'0.78rem'}}>
+                  Open dashboard ↗
+                </a>
+              </div>
             </div>
           );
         })}
@@ -1337,11 +1471,20 @@ function App() {
   const [logPayment, setLogPayment] = useState(null);
   const [savingEntry, setSavingEntry] = useState(false);
   const [showRem, setShowRem] = useState(false);
-  const [syncing, setSyncing]       = useState(false);
-  const [tab, setTab]               = useState('monthly');
-  const [reportYear, setReportYear] = useState(new Date().getFullYear());
-  const [toast, setToast]     = useState(null);
-  const toastTimer            = useRef(null);
+  const [syncing, setSyncing]         = useState(false);
+  const [tab, setTab]                 = useState('monthly');
+  const [reportYear, setReportYear]   = useState(new Date().getFullYear());
+  const [toast, setToast]             = useState(null);
+  const toastTimer                    = useRef(null);
+
+  // ── Per-vendor login / run state ──────────────────────────────
+  const LOCAL_API = 'http://localhost:3001';
+  const [sessions,      setSessions]     = useState({});
+  const [localOnline,   setLocalOnline]  = useState(null);
+  const [vendorRunning, setVendorRunning]= useState(null);
+  const [loginVendor,   setLoginVendor]  = useState(null);
+  const [loginUrl,      setLoginUrl]     = useState('');
+  const [vendorResults, setVendorResults]= useState({});
 
   function showToast(msg, type = 'success') {
     clearTimeout(toastTimer.current);
@@ -1367,7 +1510,88 @@ function App() {
 
   function handleSignOut() { authSignOut(); setAuthed(false); }
 
-  useEffect(() => { loadAll(); }, []);
+  async function loadSessions() {
+    try {
+      const r = await fetch(`${LOCAL_API}/session`);
+      if (r.ok) setSessions(await r.json());
+    } catch (_) {}
+  }
+
+  async function checkLocalScraper() {
+    try {
+      const r = await fetch(`${LOCAL_API}/ping`);
+      setLocalOnline(r.ok);
+      if (r.ok) loadSessions();
+    } catch (_) { setLocalOnline(false); }
+  }
+
+  async function handleVendorLogin(vendorId) {
+    if (!localOnline) return showToast('Local scraper is offline — start it with: python3 local_api.py', 'error');
+    try {
+      const r = await fetch(`${LOCAL_API}/login/${vendorId}`, { method: 'POST' });
+      const d = await r.json();
+      if (!d.ok) return showToast(`Could not open browser: ${d.error}`, 'error');
+      setLoginVendor(vendorId);
+      setLoginUrl(d.url);
+      setTab('vendors');
+    } catch (e) { showToast(`Login error: ${e.message}`, 'error'); }
+  }
+
+  async function handleSaveSession() {
+    try {
+      const r = await fetch(`${LOCAL_API}/login/${loginVendor}/save`, { method: 'POST' });
+      const d = await r.json();
+      if (!d.ok) return showToast(`Could not save session: ${d.error}`, 'error');
+      setLoginVendor(null);
+      setLoginUrl('');
+      await loadSessions();
+      showToast(`✓ Session saved for ${loginVendor} — you can now click Run Now`);
+    } catch (e) { showToast(`Save error: ${e.message}`, 'error'); }
+  }
+
+  function handleCancelLogin() {
+    setLoginVendor(null);
+    setLoginUrl('');
+  }
+
+  async function handleRunVendor(vendorId) {
+    if (!localOnline) return showToast('Local scraper is offline — start it with: python3 local_api.py', 'error');
+    setVendorRunning(vendorId);
+    setVendorResults(r => ({ ...r, [vendorId]: null }));
+    try {
+      const resp = await fetch(`${LOCAL_API}/run/${vendorId}`, { method: 'POST' });
+      const data = await resp.json();
+      const vRows = data?.results?.[vendorId]?.rows || [];
+      const error = data?.results?.[vendorId]?.error || data?.error;
+
+      let statusClass = 'error', message = error || 'No data returned';
+      if (vRows.length > 0) {
+        const statuses = vRows.map(r => r.status);
+        if (statuses.includes('discrepancy')) {
+          statusClass = 'mismatch';
+          const r = vRows.find(x => x.status === 'discrepancy');
+          message = `⚠ Discrepancy for ${r.period}: Dashboard ${fmtCurrency(r.dashboard_amount)} vs Received ${r.received_amount != null ? fmtCurrency(r.received_amount) : '—'}`;
+        } else if (statuses.every(s => s === 'matched')) {
+          statusClass = 'verified';
+          message = `✓ Verified — ${vRows.length} period${vRows.length !== 1 ? 's' : ''} matched`;
+        } else {
+          statusClass = 'unable';
+          message = `? Unable to fully verify — check receipts manually`;
+        }
+      }
+      setVendorResults(r => ({ ...r, [vendorId]: { statusClass, message } }));
+      await loadAll();
+      await loadSessions();
+    } catch (e) {
+      setVendorResults(r => ({ ...r, [vendorId]: { statusClass: 'error', message: `Error: ${e.message}` } }));
+    }
+    setVendorRunning(null);
+  }
+
+  useEffect(() => {
+    loadAll();
+    checkLocalScraper();
+  }, []);
 
   // Catch data handed off by the "Grab to Tracker" bookmarklet (#import=...)
   useEffect(() => {
@@ -1611,7 +1835,17 @@ function App() {
 
       {tab === 'trends' && <TrendsView data={data} />}
       {tab === 'annual' && <AnnualReport data={data} year={reportYear} setYear={setReportYear} />}
-      {tab === 'vendors' && <VendorsTab data={data} year={reportYear} onPaste={() => setShowPaste(true)} />}
+      {tab === 'vendors' && <VendorsTab data={data} year={reportYear} onPaste={() => setShowPaste(true)}
+        sessions={sessions}
+        localOnline={localOnline}
+        vendorRunning={vendorRunning}
+        loginVendor={loginVendor}
+        vendorResults={vendorResults}
+        onLogin={handleVendorLogin}
+        onSaveSession={handleSaveSession}
+        onCancelLogin={handleCancelLogin}
+        onRunVendor={handleRunVendor}
+      />}
 
       {toast && <div className={`toast ${toast.type}`}>{toast.msg}</div>}
 
@@ -1634,6 +1868,15 @@ function App() {
         <SyncModal
           onDone={rows => { setData(rowsToData(rows)); markSeen(); }}
           onClose={() => { setShowSync(false); showToast('✓ Commission sync complete'); }}
+        />
+      )}
+
+      {loginVendor && (
+        <VendorLoginModal
+          vendor={VENDORS.find(v => v.id === loginVendor)}
+          url={loginUrl}
+          onSave={handleSaveSession}
+          onCancel={handleCancelLogin}
         />
       )}
     </div>
