@@ -662,8 +662,8 @@ function VendorsTab({ data, year, onPaste, sessions, localOnline, vendorRunning,
     return { ...v, meta: VENDOR_META[v.id], exp, rec, confirmed, lastDate };
   }), [data, year]);
 
-  // Smartlead + Inboxkit are gmail-managed (no scraper session needed)
-  const GMAIL_MANAGED = new Set(['smartlead', 'inboxkit']);
+  // All vendors have Login + Run Now buttons; Gmail sync runs as part of Run Now
+  const GMAIL_MANAGED = new Set([]);
 
   return (
     <div>

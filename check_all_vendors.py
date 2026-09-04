@@ -332,6 +332,60 @@ async def check_inboxkit(pw):
         _results['inboxkit'].update({'ok': False, 'error': str(e)})
         log(f'  ! Error: {e}')
 
+# ── Smartlead (Rewardful) ─────────────────────────────────────────────────────
+async def check_smartlead(pw):
+    log('\n=== SMARTLEAD ===')
+    _init('smartlead')
+    if not session_exists('smartlead'):
+        _results['smartlead'].update({'skipped': True, 'error': 'Login required'}); return
+    try:
+        browser = await pw.chromium.launch(headless=True)
+        ctx = await browser.new_context(storage_state=session_path('smartlead'))
+        page = await ctx.new_page()
+        await page.goto('https://smartproducts.getrewardful.com/payouts', wait_until='domcontentloaded', timeout=20000)
+        try:
+            await page.wait_for_load_state('networkidle', timeout=8000)
+        except Exception:
+            pass
+        await page.wait_for_timeout(3000)
+        body = await page.locator('body').inner_text()
+        await browser.close()
+
+        log('  Rewardful payouts (relevant lines):')
+        for line in body.split('\n'):
+            s = line.strip()
+            if s and any(kw in s.lower() for kw in ['paid', 'payout', 'earning', 'pending', 'unpaid', '$', 'balance', '2026', '2025']):
+                log(f'    {s}')
+
+        # Try to find paid payout history rows first
+        by_period = _by_month(parse_payout_rows(body))
+
+        # Also check for pending/unpaid balance for current month
+        pending_m = (
+            re.search(r'(?:unpaid|pending|available)\s+(?:balance|earnings?|commissions?)\s*:?\s*\$?([\d,]+\.?\d*)', body, re.IGNORECASE)
+            or re.search(r'\$?([\d,]+\.?\d*)\s*\n?(?:unpaid|pending|available)', body, re.IGNORECASE)
+        )
+        if pending_m:
+            pending_amt = round(float(pending_m.group(1).replace(',', '')), 2)
+            if pending_amt > 0:
+                cur = datetime.now().strftime('%Y-%m')
+                by_period[cur] = by_period.get(cur, 0.0) + pending_amt
+                log(f'  Found pending balance: ${pending_amt:.2f} → {cur}')
+
+        if not by_period:
+            _results['smartlead']['error'] = 'Could not parse payouts — session may be expired'
+            log('  ! Could not parse payout rows')
+            return
+
+        for period, amount in by_period.items():
+            set_expected('smartlead', period, amount)
+            row = _compare_and_record('smartlead', period, amount)
+            _results['smartlead']['rows'].append(row)
+            log(f"  {period}: dashboard=${amount:.2f} | status={row['status']}")
+    except Exception as e:
+        _results['smartlead'].update({'ok': False, 'error': str(e)})
+        log(f'  ! Error: {e}')
+
 # ── Icypeas (FirstPromoter) ───────────────────────────────────────────────────
 async def check_icypeas(pw):
     log('\n=== ICYPEAS ===')
@@ -420,9 +474,7 @@ async def check_leadmagic(pw):
 # ── Main ──────────────────────────────────────────────────────────────────────
 async def main():
     global _cache
-    # Smartlead is fully managed by the Gmail Apps Script (EXPECTED_EQUALS_RECEIVED=true).
-    # When the PayPal receipt from "521 code" arrives, it sets both expected and received.
-    all_vendors = ['zapmail', 'heyreach', 'inboxkit', 'icypeas', 'leadmagic']
+    all_vendors = ['zapmail', 'heyreach', 'smartlead', 'inboxkit', 'icypeas', 'leadmagic']
     target = [VENDOR_ARG] if VENDOR_ARG and VENDOR_ARG in all_vendors else all_vendors
 
     for v in target:
@@ -431,8 +483,8 @@ async def main():
 
     vendor_funcs = {
         'zapmail': check_zapmail, 'heyreach': check_heyreach,
-        'inboxkit': check_inboxkit, 'icypeas': check_icypeas,
-        'leadmagic': check_leadmagic,
+        'smartlead': check_smartlead, 'inboxkit': check_inboxkit,
+        'icypeas': check_icypeas, 'leadmagic': check_leadmagic,
     }
 
     async with async_playwright() as pw:
