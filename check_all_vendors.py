@@ -317,141 +317,102 @@ async def check_inboxkit(pw):
             if s and any(kw in s.lower() for kw in ['total', 'paid', 'payout', 'net', 'earn', 'avail', 'gross', '$', 'revenue']):
                 log(f'    {s}')
 
-        # ── Extract from API data first ──────────────────────────────────────
-        total_paid = None
-        available  = None
-        net_earn   = None
-        monthly_data = {}  # period -> amount
+        # ── Extract key values from page text ────────────────────────────────
+        # Priority order matters: "Total Paid Out" is what's been confirmed paid;
+        # never use Gross Revenue (that's before costs, not our commission).
 
-        def _dig(obj, keys):
-            """Recursively search a dict/list for any of the given keys."""
-            if isinstance(obj, dict):
-                for k, v in obj.items():
-                    kl = k.lower().replace('_', ' ').replace('-', ' ')
-                    for target in keys:
-                        if target in kl and isinstance(v, (int, float)):
-                            return round(float(v), 2)
-                    result = _dig(v, keys)
-                    if result is not None:
-                        return result
-            elif isinstance(obj, list):
-                for item in obj:
-                    result = _dig(item, keys)
-                    if result is not None:
-                        return result
-            return None
+        def _amt(pattern):
+            # Allow up to 40 chars (including newline) between label and dollar figure
+            full = re.search(
+                pattern.replace('AMT', r'[\s\S]{0,40}?\$?\s*([\d,]+\.\d{2})'),
+                body, re.IGNORECASE,
+            )
+            return round(float(full.group(1).replace(',', '')), 2) if full else None
 
+        total_paid = _amt(r'Total\s+Paid\s+OutAMT')
+        available  = _amt(r'Available(?:\s+for\s+Payout)?AMT')
+        net_earn   = _amt(r'Net\s+EarningsAMT')
+
+        log(f'  total_paid={total_paid}  available={available}  net_earn={net_earn}')
+
+        # Also search API responses — only for Total Paid Out and Available,
+        # never use Gross Revenue / Your Costs from the API.
         for url, data in api_data.items():
-            tp = _dig(data, ['total paid out', 'total paid', 'paid out', 'totalpaid'])
-            if tp is not None and total_paid is None:
-                total_paid = tp
-                log(f'  API total_paid: ${total_paid:.2f} from {url}')
+            def _api_find(obj, needles):
+                if isinstance(obj, dict):
+                    for k, v in obj.items():
+                        kl = k.lower().replace('_', ' ').replace('-', ' ')
+                        if any(n in kl for n in needles) and isinstance(v, (int, float)) and v > 0:
+                            return round(float(v), 2)
+                        r = _api_find(v, needles)
+                        if r is not None:
+                            return r
+                elif isinstance(obj, list):
+                    for i in obj:
+                        r = _api_find(i, needles)
+                        if r is not None:
+                            return r
+                return None
 
-            av = _dig(data, ['available for payout', 'available payout', 'available balance', 'availableforpayout'])
-            if av is not None and available is None:
-                available = av
-                log(f'  API available: ${available:.2f} from {url}')
-
-            ne = _dig(data, ['net earnings', 'net earning', 'netearning', 'net revenue'])
-            if ne is not None and net_earn is None:
-                net_earn = ne
-                log(f'  API net_earn: ${net_earn:.2f} from {url}')
-
-            # Look for monthly breakdowns in array data
-            if isinstance(data, list):
-                for item in data:
-                    if isinstance(item, dict):
-                        month_key = None
-                        for k in ['month', 'period', 'date', 'created_at', 'paidAt', 'paid_at']:
-                            if k in item:
-                                try:
-                                    from datetime import datetime as _dt
-                                    raw = str(item[k])[:10]
-                                    mk = _dt.strptime(raw, '%Y-%m').strftime('%Y-%m') if len(raw) == 7 \
-                                         else _dt.strptime(raw, '%Y-%m-%d').strftime('%Y-%m')
-                                    if mk >= '2026-01':
-                                        month_key = mk
-                                except Exception:
-                                    pass
-                                break
-                        if month_key:
-                            amt = _dig(item, ['amount', 'net', 'earnings', 'revenue', 'payout'])
-                            if amt is not None:
-                                monthly_data[month_key] = monthly_data.get(month_key, 0.0) + amt
-
-        # ── Fall back to page text if API data didn't yield values ───────────
-        if total_paid is None:
-            m = re.search(r'Total\s+Paid\s+Out\s*\$?\s*([\d,]+\.\d{2})', body, re.IGNORECASE)
-            if m:
-                total_paid = round(float(m.group(1).replace(',', '')), 2)
-                log(f'  Text total_paid: ${total_paid:.2f}')
-
-        if available is None:
-            m = (re.search(r'\$([\d,]+\.\d{2})\s*\n\s*Available', body, re.IGNORECASE)
-                 or re.search(r'Available(?:\s+for\s+Payout)?\s*\$?\s*([\d,]+\.\d{2})', body, re.IGNORECASE))
-            if m:
-                available = round(float(m.group(1).replace(',', '')), 2)
-                log(f'  Text available: ${available:.2f}')
-
-        if net_earn is None:
-            m = re.search(r'Net\s+Earnings?\s*\$?\s*([\d,]+\.\d{2})', body, re.IGNORECASE)
-            if m:
-                net_earn = round(float(m.group(1).replace(',', '')), 2)
-                log(f'  Text net_earn: ${net_earn:.2f}')
+            if total_paid is None:
+                total_paid = _api_find(data, ['total paid out', 'totalpaidout', 'paid out total'])
+                if total_paid:
+                    log(f'  API total_paid: ${total_paid:.2f}')
+            if available is None:
+                available = _api_find(data, ['available for payout', 'availableforpayout', 'available balance'])
+                if available:
+                    log(f'  API available: ${available:.2f}')
 
         if total_paid is None and available is None and net_earn is None:
             preview = '\n'.join(l.strip() for l in body.split('\n') if l.strip())[:600]
             _results['inboxkit']['error'] = (
-                'Could not read Inboxkit billing data — session may be expired.\n'
+                'Could not read billing data — session may be expired. '
                 f'Page preview: {preview}'
             )
-            log('  ! Could not parse billing page via any method')
+            log('  ! Could not parse billing page')
             return
 
-        # ── Compare & record ─────────────────────────────────────────────────
-        # If we got per-month data from API, record each month individually
-        if monthly_data:
-            log(f'  Monthly API data: {monthly_data}')
-            for period, amount in monthly_data.items():
-                set_expected('inboxkit', period, amount)
-                row = _compare_and_record('inboxkit', period, amount)
-                _results['inboxkit']['rows'].append(row)
-                log(f"  {period}: dashboard=${amount:.2f} status={row['status']}")
-        else:
-            # No per-month breakdown available — compare totals:
-            # Total Paid Out (dashboard) vs sum of all Gmail receipts in Supabase
-            all_months = _cache.get('inboxkit', {})
-            total_received = round(sum(float(r.get('received') or 0) for r in all_months.values()), 2)
-            dashboard_amount = total_paid if total_paid is not None else net_earn
-            log(f'  Total paid out: ${dashboard_amount}  |  Total received: ${total_received:.2f}')
+        # ── Compare Total Paid Out vs Gmail receipts ──────────────────────────
+        # "Total Paid Out" on the dashboard = all Mercury payments made to Cymate.
+        # "Available for Payout" = earned but not yet requested.
+        # We verify: Total Paid Out == sum of all Inboxkit Gmail receipts.
+        all_months = _cache.get('inboxkit', {})
+        total_received = round(sum(float(r.get('received') or 0) for r in all_months.values()), 2)
+        dashboard_amount = total_paid   # what they say has been paid out
+        log(f'  Total Paid Out (dashboard): ${dashboard_amount}  |  Total received (Gmail): ${total_received:.2f}')
 
-            period = datetime.now().strftime('%Y-%m')
-            if dashboard_amount is not None:
-                set_expected('inboxkit', period, dashboard_amount)
+        period = datetime.now().strftime('%Y-%m')
+        if dashboard_amount is not None:
+            set_expected('inboxkit', period, dashboard_amount)
 
-                if abs(dashboard_amount - total_received) <= 0.01:
-                    status, reason = 'matched', None
-                elif total_received == 0:
-                    status = 'unable_to_verify'
-                    reason = 'No receipts found in Gmail for Inboxkit'
-                else:
-                    diff = round(total_received - dashboard_amount, 2)
-                    status = 'discrepancy'
-                    reason = f'Total paid out: ${dashboard_amount:.2f} | Gmail receipts: ${total_received:.2f} | Diff: ${diff:+.2f}'
+            if abs(dashboard_amount - total_received) <= 0.01:
+                status, reason = 'matched', None
+            elif total_received == 0:
+                status = 'unable_to_verify'
+                reason = 'No Inboxkit receipts found in admin@cymate.io Gmail'
+            else:
+                diff = round(total_received - dashboard_amount, 2)
+                status = 'discrepancy'
+                reason = (
+                    f'Total Paid Out on dashboard: ${dashboard_amount:.2f} | '
+                    f'Total received in Gmail: ${total_received:.2f} | '
+                    f'Diff: ${diff:+.2f}'
+                )
 
-                _write_check_history('inboxkit', period, dashboard_amount, total_received or None, status, reason)
-                _results['inboxkit']['rows'].append({
-                    'period': period,
-                    'dashboard_amount': dashboard_amount,
-                    'received_amount': total_received if total_received > 0 else None,
-                    'status': status,
-                    'difference': round(total_received - dashboard_amount, 2) if total_received > 0 else None,
-                    'reason': reason,
-                })
-                log(f"  {period}: total_paid=${dashboard_amount:.2f} received=${total_received:.2f} status={status}")
+            _write_check_history('inboxkit', period, dashboard_amount, total_received or None, status, reason)
+            _results['inboxkit']['rows'].append({
+                'period': period,
+                'dashboard_amount': dashboard_amount,
+                'received_amount': total_received if total_received > 0 else None,
+                'status': status,
+                'difference': round(total_received - dashboard_amount, 2) if total_received > 0 else None,
+                'reason': reason,
+            })
+            log(f"  {period}: total_paid=${dashboard_amount:.2f} received=${total_received:.2f} status={status}")
 
         if available is not None:
             _results['inboxkit']['available_for_payout'] = available
+            log(f'  Available for Payout (pending): ${available:.2f}')
 
     except Exception as e:
         _results['inboxkit'].update({'ok': False, 'error': str(e)})
