@@ -267,67 +267,80 @@ async def check_inboxkit(pw):
         browser = await pw.chromium.launch(headless=True)
         ctx = await browser.new_context(storage_state=session_path('inboxkit'))
         page = await ctx.new_page()
-
-        # Try billing page first, then partner/payouts page
-        found = False
-        for url in ['https://studio.inboxkit.com/billing', 'https://studio.inboxkit.com/partner']:
-            await page.goto(url, wait_until='domcontentloaded', timeout=20000)
-            try:
-                await page.wait_for_load_state('networkidle', timeout=8000)
-            except Exception:
-                pass
-            await page.wait_for_timeout(3000)
-            body = await page.locator('body').inner_text()
-
-            log(f'  Page: {url}')
-            log('  Relevant lines:')
-            for line in body.split('\n'):
-                s = line.strip()
-                if s and any(kw in s.lower() for kw in ['payout', 'available', 'earning', '$', 'balance', 'commission', 'withdraw']):
-                    log(f'    {s}')
-
-            # Try all known label patterns
-            PATTERNS = [
-                r'Available\s+for\s+Payout\s*:?\s*\$?([\d,]+\.?\d*)',
-                r'Available\s+Balance\s*:?\s*\$?([\d,]+\.?\d*)',
-                r'Pending\s+Payout\s*:?\s*\$?([\d,]+\.?\d*)',
-                r'Pending\s+Earnings?\s*:?\s*\$?([\d,]+\.?\d*)',
-                r'Unpaid\s+Earnings?\s*:?\s*\$?([\d,]+\.?\d*)',
-                r'Earnings?\s+Balance\s*:?\s*\$?([\d,]+\.?\d*)',
-                r'Commission\s+Balance\s*:?\s*\$?([\d,]+\.?\d*)',
-                r'Withdraw\s+Balance\s*:?\s*\$?([\d,]+\.?\d*)',
-                r'\$?([\d,]+\.\d{2})\s*(?:\n[^\n]{0,40})?Available for Payout',
-                r'\$?([\d,]+\.\d{2})\s*(?:\n[^\n]{0,40})?Available Balance',
-                r'\$?([\d,]+\.\d{2})\s*(?:\n[^\n]{0,40})?Pending Payout',
-            ]
-            m = None
-            for pat in PATTERNS:
-                m = re.search(pat, body, re.IGNORECASE)
-                if m:
-                    log(f'  Matched pattern: {pat}')
-                    break
-
-            if m:
-                amount = round(float(m.group(1).replace(',', '')), 2)
-                period = datetime.now().strftime('%Y-%m')
-                log(f'  Found balance: ${amount:.2f}')
-                set_expected('inboxkit', period, amount)
-                row = _compare_and_record('inboxkit', period, amount)
-                _results['inboxkit']['rows'].append(row)
-                log(f"  {period}: dashboard=${amount:.2f} | status={row['status']}")
-                found = True
-                break
-
+        await page.goto('https://studio.inboxkit.com/billing', wait_until='domcontentloaded', timeout=20000)
+        try:
+            await page.wait_for_load_state('networkidle', timeout=10000)
+        except Exception:
+            pass
+        await page.wait_for_timeout(4000)
+        body = await page.locator('body').inner_text()
         await browser.close()
 
-        if not found:
-            # Log first 60 non-empty lines of last page for debugging
-            preview = '\n'.join(l.strip() for l in body.split('\n') if l.strip())[:800]
-            _results['inboxkit']['error'] = (
-                'Could not find payout balance on billing or partner pages. '
-                'The page may have changed. Page preview:\n' + preview[:300]
-            )
-            log('  ! Could not parse any payout balance. Full relevant content above.')
+        log('  Billing page (relevant lines):')
+        for line in body.split('\n'):
+            s = line.strip()
+            if s and any(kw in s.lower() for kw in ['total', 'paid', 'payout', 'available', 'pending', '$', 'earning']):
+                log(f'    {s}')
+
+        # Primary: "Total Paid Out $2,358.00" — all-time amount paid via Mercury
+        # This is the most reliable metric: directly comparable to Gmail receipts total
+        m_total = re.search(r'Total\s+Paid\s+Out\s*\$?\s*([\d,]+\.?\d*)', body, re.IGNORECASE)
+        # Secondary: "Available for Payout" — pending, not yet requested
+        m_avail = (
+            re.search(r'\$([\d,]+\.\d{2})\s*\n?\s*Available(?:\s+for\s+Payout)?', body, re.IGNORECASE)
+            or re.search(r'Available(?:\s+for\s+Payout)?\s*\$?\s*([\d,]+\.\d{2})', body, re.IGNORECASE)
+        )
+
+        if not m_total and not m_avail:
+            preview = '\n'.join(l.strip() for l in body.split('\n') if l.strip())[:400]
+            _results['inboxkit']['error'] = f'Could not parse billing page — session may be expired. Preview: {preview}'
+            log('  ! Could not parse billing page')
+            return
+
+        # Compare "Total Paid Out" against sum of all received in Supabase for Inboxkit
+        if m_total:
+            total_paid = round(float(m_total.group(1).replace(',', '')), 2)
+            log(f'  Total Paid Out: ${total_paid:.2f}')
+
+            # Sum all received amounts across months in Supabase
+            all_months = _cache.get('inboxkit', {})
+            total_received = round(sum(
+                float(r.get('received') or 0) for r in all_months.values()
+            ), 2)
+            log(f'  Total received in Supabase: ${total_received:.2f}')
+
+            # Write a synthetic "all-time" row using current month as the period key
+            period = datetime.now().strftime('%Y-%m')
+            set_expected('inboxkit', period, total_paid)
+
+            if abs(total_paid - total_received) <= 0.01:
+                status = 'matched'
+                reason = None
+            elif total_received == 0:
+                status = 'unable_to_verify'
+                reason = 'No receipts found in Gmail for Inboxkit'
+            else:
+                diff = round(total_received - total_paid, 2)
+                status = 'discrepancy'
+                reason = f'Total paid out: ${total_paid:.2f} | Total received in Gmail: ${total_received:.2f} | Diff: ${diff:+.2f}'
+
+            _write_check_history('inboxkit', period, total_paid, total_received or None, status, reason)
+            row = {
+                'period': period,
+                'dashboard_amount': total_paid,
+                'received_amount': total_received if total_received > 0 else None,
+                'status': status,
+                'difference': round(total_received - total_paid, 2) if total_received > 0 else None,
+                'reason': reason,
+            }
+            _results['inboxkit']['rows'].append(row)
+            log(f"  {period}: total_paid=${total_paid:.2f} received=${total_received:.2f} status={status}")
+
+        if m_avail:
+            avail = round(float(m_avail.group(1).replace(',', '')), 2)
+            log(f'  Available for Payout: ${avail:.2f} (pending — not yet paid out)')
+            _results['inboxkit']['available_for_payout'] = avail
+
     except Exception as e:
         _results['inboxkit'].update({'ok': False, 'error': str(e)})
         log(f'  ! Error: {e}')
