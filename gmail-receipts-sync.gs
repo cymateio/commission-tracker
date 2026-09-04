@@ -212,11 +212,14 @@ function setup() {
   Logger.log('SHEET URL: ' + url);
 }
 
-// Run once to schedule syncReceipts for every Monday (~9am). Replaces any existing schedule.
-function setWeeklyMonday() {
+// Run once to schedule syncReceipts daily at 8am. Replaces any existing schedule.
+function setDailyTrigger() {
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (t.getHandlerFunction() === 'syncReceipts') ScriptApp.deleteTrigger(t);
   });
-  ScriptApp.newTrigger('syncReceipts').timeBased().onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(9).create();
-  Logger.log('Scheduled: every Monday ~9am.');
+  ScriptApp.newTrigger('syncReceipts').timeBased().everyDays(1).atHour(8).create();
+  Logger.log('Scheduled: every day ~8am.');
 }
+
+// Legacy alias kept for reference
+function setWeeklyMonday() { setDailyTrigger(); }
