@@ -18,522 +18,678 @@
       --red: #f87171; --red-dim: #3d1a1a;
       --yellow: #fbbf24; --yellow-dim: #3d3010;
       --blue: #60a5fa; --blue-dim: #1a2a3d;
-      --purple: #c084fc;
     }
     body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
-    .app { max-width: 1200px; margin: 0 auto; padding: 28px 20px; }
+    .app { max-width: 1280px; margin: 0 auto; padding: 24px 20px; }
 
     /* ── Header ── */
-    .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; flex-wrap: wrap; gap: 12px; }
-    .header h1 { font-size: 1.4rem; font-weight: 700; }
+    .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+    .header h1 { font-size: 1.3rem; font-weight: 700; }
     .header h1 span { color: var(--accent-light); }
-    .header-meta { font-size: 0.78rem; color: var(--text-muted); }
+    .scraper-status { font-size: 0.78rem; display: flex; align-items: center; gap: 6px; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+    .dot.green { background: var(--green); } .dot.red { background: var(--red); } .dot.gray { background: var(--text-dim); }
+
+    /* ── Tabs ── */
+    .tabs { display: flex; gap: 2px; margin-bottom: 24px; border-bottom: 1px solid var(--border); }
+    .tab-btn { padding: 9px 22px; border-radius: 8px 8px 0 0; cursor: pointer; font-size: 0.87rem; font-weight: 500; color: var(--text-muted); background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all .15s; }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active { color: var(--accent-light); border-bottom-color: var(--accent-light); }
+
+    /* ── Alerts ── */
+    .alert { display: flex; align-items: center; gap: 10px; background: var(--red-dim); border: 1px solid var(--red); border-radius: 10px; padding: 11px 16px; margin-bottom: 16px; font-size: 0.86rem; color: var(--red); }
+    .offline-banner { background: var(--surface2); border: 1px solid var(--border2); border-radius: 10px; padding: 11px 16px; font-size: 0.83rem; color: var(--text-muted); margin-bottom: 16px; }
 
     /* ── Summary strip ── */
-    .summary { display: flex; gap: 12px; margin-bottom: 28px; flex-wrap: wrap; }
-    .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 20px; min-width: 140px; }
-    .stat .label { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
-    .stat .value { font-size: 1.4rem; font-weight: 700; }
-    .stat .value.green { color: var(--green); }
-    .stat .value.red   { color: var(--red); }
-    .stat .value.yellow{ color: var(--yellow); }
-
-    /* ── Alert banner ── */
-    .alert { display: flex; align-items: center; gap: 10px; background: var(--red-dim); border: 1px solid var(--red); border-radius: 10px; padding: 12px 16px; margin-bottom: 20px; font-size: 0.88rem; color: var(--red); }
+    .summary { display: flex; gap: 10px; margin-bottom: 22px; flex-wrap: wrap; }
+    .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 13px 18px; min-width: 130px; }
+    .stat .label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 3px; }
+    .stat .value { font-size: 1.3rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .stat .value.green { color: var(--green); } .stat .value.red { color: var(--red); } .stat .value.yellow { color: var(--yellow); }
 
     /* ── Vendor grid ── */
-    .vendor-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; margin-bottom: 32px; }
+    .vendor-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; margin-bottom: 28px; }
+    .vendor-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; transition: border-color .2s; }
+    .vendor-card.discrepancy { border-color: var(--red); }
+    .vendor-card.gmail-card  { border-color: var(--accent-dim); }
 
-    .vendor-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; }
-    .vendor-card.has-discrepancy { border-color: var(--red); }
-    .vendor-card.gmail-managed { border-color: var(--accent-dim); }
+    .vc-header { display: flex; align-items: center; justify-content: space-between; padding: 13px 15px 9px; border-bottom: 1px solid var(--border); }
+    .vc-name { font-size: 0.9rem; font-weight: 700; }
+    .badge { display: inline-flex; align-items: center; gap: 4px; font-size: 0.68rem; font-weight: 600; padding: 3px 8px; border-radius: 20px; white-space: nowrap; }
+    .badge.logged-in   { background: var(--green-dim);  color: var(--green); }
+    .badge.login-req   { background: var(--surface3);   color: var(--text-muted); }
+    .badge.session-exp { background: var(--yellow-dim); color: var(--yellow); }
+    .badge.matched     { background: var(--green-dim);  color: var(--green); }
+    .badge.discrepancy { background: var(--red-dim);    color: var(--red); }
+    .badge.unable      { background: var(--yellow-dim); color: var(--yellow); }
+    .badge.gmail       { background: var(--accent-dim); color: var(--accent-light); }
+    .badge.running     { background: var(--blue-dim);   color: var(--blue); }
+    .badge.error       { background: var(--red-dim);    color: var(--red); }
 
-    .vc-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 10px; border-bottom: 1px solid var(--border); }
-    .vc-name { font-size: 0.95rem; font-weight: 700; letter-spacing: .01em; }
-    .vc-badge { font-size: 0.7rem; font-weight: 600; padding: 3px 8px; border-radius: 20px; white-space: nowrap; }
-    .vc-badge.matched      { background: var(--green-dim);  color: var(--green); }
-    .vc-badge.discrepancy  { background: var(--red-dim);    color: var(--red); }
-    .vc-badge.unable       { background: var(--yellow-dim); color: var(--yellow); }
-    .vc-badge.login-req    { background: var(--surface3);   color: var(--text-muted); }
-    .vc-badge.gmail        { background: var(--accent-dim); color: var(--accent-light); }
-    .vc-badge.running      { background: var(--blue-dim);   color: var(--blue); }
-
-    .vc-body { padding: 14px 16px; flex: 1; }
-    .vc-row  { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; font-size: 0.85rem; }
+    .vc-body { padding: 12px 15px; flex: 1; font-size: 0.83rem; }
+    .vc-row  { display: flex; justify-content: space-between; margin-bottom: 5px; }
     .vc-row .lbl { color: var(--text-muted); }
     .vc-row .val { font-weight: 600; font-variant-numeric: tabular-nums; }
-    .vc-row .val.green { color: var(--green); }
-    .vc-row .val.red   { color: var(--red); }
-    .vc-row .val.muted { color: var(--text-muted); }
-    .vc-row .val.yellow { color: var(--yellow); }
-    .vc-divider { border: none; border-top: 1px solid var(--border); margin: 8px 0; }
-    .vc-reason { font-size: 0.75rem; color: var(--yellow); background: var(--yellow-dim); border-radius: 6px; padding: 6px 10px; margin-top: 6px; line-height: 1.4; }
-    .vc-error  { font-size: 0.75rem; color: var(--text-muted); background: var(--surface2); border-radius: 6px; padding: 6px 10px; margin-top: 6px; }
-    .vc-last-check { font-size: 0.72rem; color: var(--text-dim); margin-top: 8px; }
+    .vc-row .val.green { color: var(--green); } .vc-row .val.red { color: var(--red); } .vc-row .val.muted { color: var(--text-muted); }
+    .vc-divider { border: none; border-top: 1px solid var(--border); margin: 7px 0; }
+    .vc-reason { font-size: 0.73rem; background: var(--yellow-dim); color: var(--yellow); border-radius: 6px; padding: 5px 9px; margin-top: 6px; line-height: 1.4; }
+    .vc-error  { font-size: 0.73rem; background: var(--surface2); color: var(--text-muted); border-radius: 6px; padding: 5px 9px; margin-top: 6px; }
+    .vc-last { font-size: 0.7rem; color: var(--text-dim); margin-top: 7px; }
 
-    .vc-footer { display: flex; gap: 8px; padding: 10px 16px 14px; border-top: 1px solid var(--border); }
-    .btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 14px; border-radius: 8px; border: 1px solid; cursor: pointer; font-size: 0.82rem; font-weight: 500; transition: all .15s; white-space: nowrap; }
-    .btn:disabled { opacity: .45; cursor: not-allowed; }
-    .btn-primary  { background: var(--accent); border-color: var(--accent); color: #fff; }
-    .btn-primary:hover:not(:disabled) { background: var(--accent-light); border-color: var(--accent-light); }
-    .btn-secondary{ background: transparent; border-color: var(--border2); color: var(--text-muted); }
+    .vc-footer { display: flex; gap: 7px; padding: 9px 15px 13px; border-top: 1px solid var(--border); align-items: center; flex-wrap: wrap; }
+    .btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 13px; border-radius: 8px; border: 1px solid; cursor: pointer; font-size: 0.8rem; font-weight: 500; transition: all .15s; white-space: nowrap; }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-primary   { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-light); }
+    .btn-secondary { background: transparent; border-color: var(--border2); color: var(--text-muted); }
     .btn-secondary:hover:not(:disabled) { border-color: var(--accent); color: var(--accent-light); }
-    .btn-danger   { background: transparent; border-color: var(--red); color: var(--red); }
-    .btn-danger:hover:not(:disabled) { background: var(--red-dim); }
-    .btn-sm { padding: 5px 10px; font-size: 0.76rem; }
 
-    /* ── Session indicator ── */
-    .session-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 6px; }
-    .session-dot.ok    { background: var(--green); }
-    .session-dot.stale { background: var(--yellow); }
-    .session-dot.none  { background: var(--text-dim); }
+    /* ── Progress bar ── */
+    .progress-wrap { background: var(--surface3); border-radius: 20px; height: 5px; overflow: hidden; width: 100%; margin-top: 5px; }
+    .progress-bar  { height: 100%; border-radius: 20px; transition: width .4s; }
 
-    /* ── Login modal ── */
-    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.65); display: flex; align-items: center; justify-content: center; z-index: 100; }
-    .modal { background: var(--surface); border: 1px solid var(--border2); border-radius: 16px; padding: 28px; max-width: 460px; width: 90%; }
-    .modal h2 { font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; }
-    .modal p  { font-size: 0.87rem; color: var(--text-muted); line-height: 1.6; margin-bottom: 16px; }
-    .modal .url { font-size: 0.8rem; background: var(--surface2); border-radius: 6px; padding: 8px 12px; color: var(--blue); word-break: break-all; margin-bottom: 16px; }
-    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
-
-    /* ── History section ── */
-    .section-title { font-size: 1rem; font-weight: 700; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
-    .history-table { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
-    .history-table table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
-    .history-table th { background: var(--surface2); color: var(--text-muted); padding: 9px 14px; text-align: left; font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: .04em; }
-    .history-table td { padding: 9px 14px; border-top: 1px solid var(--border); }
-    .history-table tr:hover td { background: var(--surface2); }
-    .status-pill { display: inline-block; font-size: 0.7rem; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
-    .status-pill.matched     { background: var(--green-dim);  color: var(--green); }
-    .status-pill.discrepancy { background: var(--red-dim);    color: var(--red); }
+    /* ── Report tables ── */
+    .report-section { margin-bottom: 32px; }
+    .section-title { font-size: 0.95rem; font-weight: 700; margin-bottom: 12px; }
+    .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; min-width: 600px; }
+    th { background: var(--surface2); color: var(--text-muted); padding: 9px 13px; text-align: left; font-weight: 600; font-size: 0.7rem; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
+    td { padding: 9px 13px; border-top: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+    tr:hover td { background: var(--surface2); }
+    tr.sub-row td { background: var(--surface2); }
+    .status-pill { display: inline-block; font-size: 0.68rem; padding: 2px 7px; border-radius: 20px; font-weight: 600; }
+    .status-pill.matched     { background: var(--green-dim); color: var(--green); }
+    .status-pill.discrepancy { background: var(--red-dim);   color: var(--red); }
     .status-pill.unable_to_verify { background: var(--yellow-dim); color: var(--yellow); }
+    .status-pill.partial     { background: var(--yellow-dim); color: var(--yellow); }
+    .expand-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; }
+    .expand-btn:hover { color: var(--text); }
+    .diff-pos { color: var(--green); } .diff-neg { color: var(--red); }
+    .sub-indent { padding-left: 32px !important; color: var(--text-muted); }
+    .sub-vendor-name { color: var(--text); font-weight: 500; }
+
+    /* ── Modals ── */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.65); display: flex; align-items: center; justify-content: center; z-index: 100; }
+    .modal { background: var(--surface); border: 1px solid var(--border2); border-radius: 16px; padding: 26px; max-width: 440px; width: 90%; }
+    .modal h2 { font-size: 1.05rem; font-weight: 700; margin-bottom: 10px; }
+    .modal p  { font-size: 0.85rem; color: var(--text-muted); line-height: 1.6; margin-bottom: 14px; }
+    .modal .url-box { font-size: 0.78rem; background: var(--surface2); border-radius: 6px; padding: 8px 12px; color: var(--blue); word-break: break-all; margin-bottom: 14px; }
+    .modal-actions { display: flex; gap: 9px; justify-content: flex-end; }
 
     /* ── Spinner ── */
     @keyframes spin { to { transform: rotate(360deg); } }
-    .spinner { width: 18px; height: 18px; border: 2px solid var(--border2); border-top-color: var(--accent-light); border-radius: 50%; animation: spin .7s linear infinite; display: inline-block; }
-
-    /* ── Offline banner ── */
-    .offline-banner { background: var(--surface2); border: 1px solid var(--border2); border-radius: 10px; padding: 12px 16px; font-size: 0.83rem; color: var(--text-muted); margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+    .spinner { width: 13px; height: 13px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0; }
+    .spinner.dark { border-color: var(--border2); border-top-color: var(--accent-light); }
   </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-  const { useState, useEffect, useCallback } = React;
+const { useState, useEffect, useCallback, useMemo } = React;
 
-  const SB_URL = 'https://ygotkwhvydmisrkyofec.supabase.co';
-  const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlnb3Rrd2h2eWRtaXNya3lvZmVjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1NDcyNDMsImV4cCI6MjA5OTEyMzI0M30.Ya5cYDBgof2yyT78TIQj20VWndLn1qTyaWXe36Dwchg';
-  const LOCAL   = 'http://localhost:3001';
-  const SB_HEAD = { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` };
-  const SYNC_URL = 'https://script.google.com/a/macros/cymate.io/s/AKfycbxNw8uKZB8DYJdN9W8Gy7-WtDMaZUto-i78zOpyuK_WiPpRNPxqm3MSViDZRtwegoDU/exec';
+const SB_URL  = 'https://ygotkwhvydmisrkyofec.supabase.co';
+const SB_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlnb3Rrd2h2eWRtaXNya3lvZmVjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1NDcyNDMsImV4cCI6MjA5OTEyMzI0M30.Ya5cYDBgof2yyT78TIQj20VWndLn1qTyaWXe36Dwchg';
+const LOCAL   = 'http://localhost:3001';
+const SB_HEAD = { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` };
+const SYNC_URL = 'https://script.google.com/a/macros/cymate.io/s/AKfycbxNw8uKZB8DYJdN9W8Gy7-WtDMaZUto-i78zOpyuK_WiPpRNPxqm3MSViDZRtwegoDU/exec';
 
-  const VENDORS = [
-    { id: 'zapmail',   name: 'Zapmail',   platform: 'Custom Portal',  gmailManaged: false },
-    { id: 'heyreach',  name: 'HeyReach',  platform: 'Tolt',           gmailManaged: false },
-    { id: 'inboxkit',  name: 'Inboxkit',  platform: 'Direct',         gmailManaged: false },
-    { id: 'smartlead', name: 'Smartlead', platform: 'Gmail Managed',  gmailManaged: true  },
-    { id: 'icypeas',   name: 'Icypeas',   platform: 'FirstPromoter',  gmailManaged: false },
-    { id: 'leadmagic', name: 'LeadMagic', platform: 'Dub.co',         gmailManaged: false },
-  ];
-  const VENDOR_COLORS = {
-    zapmail: '#818cf8', heyreach: '#f472b6', inboxkit: '#38bdf8',
-    smartlead: '#34d399', icypeas: '#fb923c', leadmagic: '#a78bfa',
-  };
+const VENDORS = [
+  { id: 'zapmail',   name: 'Zapmail',   gmailManaged: false },
+  { id: 'heyreach',  name: 'HeyReach',  gmailManaged: false },
+  { id: 'inboxkit',  name: 'Inboxkit',  gmailManaged: false },
+  { id: 'smartlead', name: 'Smartlead', gmailManaged: true  },
+  { id: 'icypeas',   name: 'Icypeas',   gmailManaged: false },
+  { id: 'leadmagic', name: 'LeadMagic', gmailManaged: false },
+];
+const VENDOR_IDS = VENDORS.map(v => v.id);
+const VENDOR_COLORS = {
+  zapmail:'#818cf8', heyreach:'#f472b6', inboxkit:'#38bdf8',
+  smartlead:'#34d399', icypeas:'#fb923c', leadmagic:'#a78bfa',
+};
 
-  const fmt = v => v == null ? '—' : `$${parseFloat(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  const fmtDate = s => s ? new Date(s).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—';
+const fmt  = v => v == null ? '—' : `$${parseFloat(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+const fmtD = s => !s ? '—' : new Date(s).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+const pct  = (r,e) => (e && parseFloat(e) > 0) ? Math.min(100, Math.round(parseFloat(r||0)/parseFloat(e)*100)) : 0;
 
-  // ── VendorCard ──────────────────────────────────────────────────────────────
-  function VendorCard({ vendor, commissions, session, lastCheck, running, loginOpen, onRun, onLogin, onSaveSession, onSyncGmail }) {
-    const color = VENDOR_COLORS[vendor.id] || '#8b85ff';
+function ProgressBar({ value, color='var(--green)' }) {
+  return (
+    <div className="progress-wrap">
+      <div className="progress-bar" style={{ width:`${value}%`, background:color }} />
+    </div>
+  );
+}
 
-    // Pick the latest 2026 commission row for this vendor
-    const rows2026 = commissions
-      .filter(r => r.vendor === vendor.id && r.month >= '2026-01')
-      .sort((a, b) => b.month.localeCompare(a.month));
-    const latest = rows2026[0] || null;
+// ── VendorCard ────────────────────────────────────────────────────────────────
+function VendorCard({ vendor, rows, session, lastCheck, running, loginOpen, onRun, onLogin, onSaveSession, onSyncGmail }) {
+  const color  = VENDOR_COLORS[vendor.id] || '#8b85ff';
+  const latest = rows.filter(r => r.month >= '2026-01').sort((a,b) => b.month.localeCompare(a.month))[0] || null;
 
-    // Compute display status
-    let badge = 'login-req', badgeText = 'Login Required';
-    let hasDiscrepancy = false;
-    if (vendor.gmailManaged) {
-      badge = 'gmail'; badgeText = 'Gmail Managed';
-    } else if (running) {
-      badge = 'running'; badgeText = 'Checking…';
-    } else if (lastCheck) {
-      badge = lastCheck.status;
-      badgeText = lastCheck.status === 'matched' ? 'Matched'
-        : lastCheck.status === 'discrepancy' ? 'Discrepancy'
-        : 'Unable to Verify';
-      if (lastCheck.status === 'discrepancy') hasDiscrepancy = true;
-    } else if (latest) {
-      if (latest.expected != null && latest.received != null) {
-        const diff = Math.abs(parseFloat(latest.expected) - parseFloat(latest.received));
-        if (diff <= 0.01) { badge = 'matched'; badgeText = 'Matched'; }
-        else { badge = 'discrepancy'; badgeText = 'Discrepancy'; hasDiscrepancy = true; }
-      } else if (session?.exists) {
-        badge = 'unable'; badgeText = 'Not Checked';
-      }
-    }
+  const sessionOk    = !vendor.gmailManaged && session?.exists && !session?.stale;
+  const sessionStale = !vendor.gmailManaged && session?.exists && session?.stale;
+  const noSession    = !vendor.gmailManaged && !session?.exists;
 
-    const sessionOk = session?.exists && !session?.stale;
-    const sessionStale = session?.exists && session?.stale;
-    const needsLogin = !vendor.gmailManaged && !session?.exists;
+  let loginBadge, loginBadgeClass;
+  if (vendor.gmailManaged)    { loginBadge = 'Gmail Managed'; loginBadgeClass = 'gmail'; }
+  else if (running)           { loginBadge = 'Checking…';     loginBadgeClass = 'running'; }
+  else if (sessionOk)         { loginBadge = 'Logged In';     loginBadgeClass = 'logged-in'; }
+  else if (sessionStale)      { loginBadge = 'Session Expired'; loginBadgeClass = 'session-exp'; }
+  else                        { loginBadge = 'Login Required'; loginBadgeClass = 'login-req'; }
 
-    return (
-      <div className={`vendor-card ${hasDiscrepancy ? 'has-discrepancy' : ''} ${vendor.gmailManaged ? 'gmail-managed' : ''}`}>
-        <div className="vc-header">
-          <span className="vc-name" style={{ color }}>{vendor.name}</span>
-          <span className={`vc-badge ${badge}`}>
-            {running && <span className="spinner" style={{ width: 10, height: 10, marginRight: 4 }} />}
-            {badgeText}
+  let resultBadge = null;
+  if (lastCheck && !running) {
+    const cls = lastCheck.status;
+    const lbl = cls==='matched' ? '✓ Matched' : cls==='discrepancy' ? '⚠ Discrepancy' : '? Unable to Verify';
+    resultBadge = <span className={`badge ${cls}`} style={{marginRight:4}}>{lbl}</span>;
+  }
+
+  const diff = latest?.expected != null && latest?.received != null
+    ? parseFloat(latest.received) - parseFloat(latest.expected) : null;
+  const isDiscrepancy = diff != null && Math.abs(diff) > 0.01;
+  const progress = pct(latest?.received, latest?.expected);
+
+  return (
+    <div className={`vendor-card${isDiscrepancy?' discrepancy':''}${vendor.gmailManaged?' gmail-card':''}`}>
+      <div className="vc-header">
+        <span className="vc-name" style={{ color }}>{vendor.name}</span>
+        <div style={{ display:'flex', gap:4, alignItems:'center', flexWrap:'wrap', justifyContent:'flex-end' }}>
+          {resultBadge}
+          <span className={`badge ${loginBadgeClass}`}>
+            {running && <span className="spinner" />}
+            {loginBadge}
           </span>
         </div>
-
-        <div className="vc-body">
-          {/* Session status */}
-          {!vendor.gmailManaged && (
-            <div className="vc-row" style={{ marginBottom: 10 }}>
-              <span className="lbl">Session</span>
-              <span className="val">
-                <span className={`session-dot ${sessionOk ? 'ok' : sessionStale ? 'stale' : 'none'}`} />
-                {sessionOk ? `Active (${session.age_days}d old)` : sessionStale ? `Stale (${session.age_days}d)` : 'Not saved'}
-              </span>
-            </div>
-          )}
-
-          {latest && <>
-            <div className="vc-row">
-              <span className="lbl">Period</span>
-              <span className="val">{latest.month}</span>
-            </div>
-            <div className="vc-row">
-              <span className="lbl">Dashboard (expected)</span>
-              <span className="val">{fmt(latest.expected)}</span>
-            </div>
-            <div className="vc-row">
-              <span className="lbl">Received (Gmail)</span>
-              <span className={`val ${latest.received == null ? 'muted' : ''}`}>
-                {latest.received == null ? 'Pending' : fmt(latest.received)}
-              </span>
-            </div>
-            {latest.expected != null && latest.received != null && (
-              <>
-                <hr className="vc-divider" />
-                <div className="vc-row">
-                  <span className="lbl">Difference</span>
-                  {(() => {
-                    const diff = parseFloat(latest.received) - parseFloat(latest.expected);
-                    return <span className={`val ${Math.abs(diff) <= 0.01 ? 'green' : 'red'}`}>
-                      {Math.abs(diff) <= 0.01 ? '✓ Match' : `${diff >= 0 ? '+' : ''}${fmt(diff)}`}
-                    </span>;
-                  })()}
-                </div>
-              </>
-            )}
-          </>}
-
-          {vendor.gmailManaged && !latest && (
-            <div className="vc-row"><span className="lbl" style={{ color: 'var(--text-muted)' }}>Managed via Gmail receipt sync. Run Gmail Sync to update.</span></div>
-          )}
-
-          {lastCheck?.reason && (
-            <div className={lastCheck.status === 'discrepancy' ? 'vc-reason' : 'vc-error'}>
-              {lastCheck.reason}
-            </div>
-          )}
-
-          {!vendor.gmailManaged && lastCheck && (
-            <div className="vc-last-check">Last checked: {fmtDate(lastCheck.checked_at)}</div>
-          )}
-        </div>
-
-        <div className="vc-footer">
-          {vendor.gmailManaged ? (
-            <button className="btn btn-secondary" onClick={onSyncGmail}>
-              📧 Sync Gmail
-            </button>
-          ) : (<>
-            {!sessionOk && !loginOpen && (
-              <button className="btn btn-secondary" onClick={onLogin} disabled={running}>
-                🔑 {needsLogin ? 'Login' : 'Re-Login'}
-              </button>
-            )}
-            {loginOpen && (
-              <button className="btn btn-primary" onClick={onSaveSession}>
-                💾 Save Session
-              </button>
-            )}
-            <button className="btn btn-primary" onClick={onRun}
-              disabled={running || loginOpen || (!sessionOk && !sessionStale)}>
-              {running ? <><span className="spinner" /> Checking…</> : '▶ Run Now'}
-            </button>
-            {sessionStale && !sessionOk && !loginOpen && (
-              <span style={{ fontSize: '0.72rem', color: 'var(--yellow)', alignSelf: 'center' }}>Session may be expired</span>
-            )}
-          </>)}
-        </div>
       </div>
-    );
-  }
 
-  // ── LoginModal ──────────────────────────────────────────────────────────────
-  function LoginModal({ vendor, loginUrl, onSave, onCancel }) {
-    return (
-      <div className="modal-overlay">
-        <div className="modal">
-          <h2>🔑 Log in to {vendor.name}</h2>
-          <p>
-            A Chrome browser window has opened. Complete the login — including any
-            verification codes or MFA — then click <strong>Save Session</strong> below.
-          </p>
-          <div className="url">{loginUrl}</div>
-          <p style={{ fontSize: '0.78rem', color: 'var(--text-dim)' }}>
-            Do not close the Chrome window until you click Save Session.
-          </p>
-          <div className="modal-actions">
-            <button className="btn btn-secondary" onClick={onCancel}>Cancel</button>
-            <button className="btn btn-primary" onClick={onSave}>💾 Save Session</button>
+      <div className="vc-body">
+        {latest ? <>
+          <div className="vc-row"><span className="lbl">Period</span><span className="val">{latest.month}</span></div>
+          <div className="vc-row"><span className="lbl">Expected</span><span className="val">{fmt(latest.expected)}</span></div>
+          <div className="vc-row">
+            <span className="lbl">Received</span>
+            <span className={`val${latest.received==null?' muted':''}`}>{latest.received==null?'Pending':fmt(latest.received)}</span>
           </div>
+          {diff !== null && <>
+            <hr className="vc-divider" />
+            <div className="vc-row">
+              <span className="lbl">Difference</span>
+              <span className={`val${Math.abs(diff)<=0.01?' green':' red'}`}>
+                {Math.abs(diff)<=0.01 ? '✓ Match' : `${diff>=0?'+':''}${fmt(diff)}`}
+              </span>
+            </div>
+            <ProgressBar value={progress} color={isDiscrepancy?'var(--red)':'var(--green)'} />
+            <div style={{fontSize:'0.7rem',color:'var(--text-muted)',marginTop:3,textAlign:'right'}}>{progress}% received</div>
+          </>}
+        </> : (
+          vendor.gmailManaged
+            ? <div style={{color:'var(--text-muted)',fontSize:'0.82rem'}}>Managed via Gmail receipt sync. Use Sync Gmail to update.</div>
+            : <div style={{color:'var(--text-dim)',fontSize:'0.82rem'}}>No data yet. Log in and run a check.</div>
+        )}
+        {lastCheck?.reason && <div className={lastCheck.status==='discrepancy'?'vc-reason':'vc-error'}>{lastCheck.reason}</div>}
+        {lastCheck && !vendor.gmailManaged && <div className="vc-last">Last checked: {fmtD(lastCheck.checked_at)}</div>}
+        {sessionOk && <div className="vc-last" style={{color:'var(--green)',opacity:.7}}>Session active ({session.age_days}d old)</div>}
+        {sessionStale && <div className="vc-last" style={{color:'var(--yellow)'}}>Session may be expired ({session.age_days}d old)</div>}
+      </div>
+
+      <div className="vc-footer">
+        {vendor.gmailManaged
+          ? <button className="btn btn-secondary" onClick={onSyncGmail}>📧 Sync Gmail</button>
+          : <>
+              {!loginOpen
+                ? <button className="btn btn-secondary" onClick={onLogin} disabled={running}>
+                    🔑 {noSession ? 'Login' : 'Re-Login'}
+                  </button>
+                : <button className="btn btn-primary" onClick={onSaveSession}>💾 Save Session</button>
+              }
+              <button className="btn btn-primary" onClick={onRun}
+                disabled={running || loginOpen || noSession}
+                title={noSession ? 'Login first to enable Run Now' : ''}>
+                {running ? <><span className="spinner" /> Checking…</> : '▶ Run Now'}
+              </button>
+              {noSession && !loginOpen && <span style={{fontSize:'0.7rem',color:'var(--text-dim)'}}>Login first</span>}
+            </>
+        }
+      </div>
+    </div>
+  );
+}
+
+// ── Monthly View ──────────────────────────────────────────────────────────────
+function MonthlyView({ commissions }) {
+  const [expanded, setExpanded] = useState({});
+  const toggle = m => setExpanded(p => ({...p, [m]: !p[m]}));
+
+  const months = useMemo(() => {
+    const map = {};
+    commissions.forEach(r => {
+      if (!map[r.month]) map[r.month] = {};
+      map[r.month][r.vendor] = r;
+    });
+    return Object.entries(map).sort(([a],[b]) => b.localeCompare(a));
+  }, [commissions]);
+
+  if (!months.length) return (
+    <div className="report-section">
+      <div className="section-title">Monthly Breakdown</div>
+      <div style={{color:'var(--text-muted)',fontSize:'0.85rem',padding:'20px 0'}}>No commission data found. Run Gmail Sync or a vendor check to populate data.</div>
+    </div>
+  );
+
+  return (
+    <div className="report-section">
+      <div className="section-title">Monthly Breakdown</div>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style={{width:32}}></th>
+              <th>Month</th>
+              <th>Expected</th>
+              <th>Received</th>
+              <th>Difference</th>
+              <th>Progress</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {months.map(([month, byVendor]) => {
+              const exp = VENDOR_IDS.reduce((s,v) => s + parseFloat(byVendor[v]?.expected||0), 0);
+              const rec = VENDOR_IDS.reduce((s,v) => s + parseFloat(byVendor[v]?.received||0), 0);
+              const diff = rec - exp;
+              const p = pct(rec, exp);
+              let statusClass = 'partial', statusLabel = 'Partial';
+              if (exp > 0 && Math.abs(diff) <= 0.01) { statusClass='matched'; statusLabel='Matched'; }
+              else if (exp > 0 && rec > 0 && Math.abs(diff) > 0.01) { statusClass='discrepancy'; statusLabel='Discrepancy'; }
+              const isExpanded = expanded[month];
+              return [
+                <tr key={month}>
+                  <td><button className="expand-btn" onClick={() => toggle(month)}>{isExpanded?'▼':'▶'}</button></td>
+                  <td style={{fontWeight:600}}>{month}</td>
+                  <td>{exp > 0 ? fmt(exp) : '—'}</td>
+                  <td>{rec > 0 ? fmt(rec) : '—'}</td>
+                  <td className={exp>0 ? (Math.abs(diff)<=0.01?'diff-pos':diff<0?'diff-neg':'diff-pos') : ''}>
+                    {exp > 0 ? (Math.abs(diff)<=0.01 ? '✓' : `${diff>=0?'+':''}${fmt(diff)}`) : '—'}
+                  </td>
+                  <td style={{minWidth:110}}>
+                    {exp > 0 ? <>
+                      <ProgressBar value={p} color={Math.abs(diff)<=0.01?'var(--green)':'var(--yellow)'} />
+                      <span style={{fontSize:'0.7rem',color:'var(--text-muted)'}}>{p}%</span>
+                    </> : '—'}
+                  </td>
+                  <td><span className={`status-pill ${statusClass}`}>{statusLabel}</span></td>
+                </tr>,
+                isExpanded && VENDORS.filter(v => byVendor[v.id]).map(v => {
+                  const row  = byVendor[v.id];
+                  const d    = row.expected!=null && row.received!=null ? parseFloat(row.received)-parseFloat(row.expected) : null;
+                  return (
+                    <tr key={month+v.id} className="sub-row">
+                      <td></td>
+                      <td className="sub-indent" style={{paddingLeft:32}}>
+                        <span className="sub-vendor-name" style={{color:VENDOR_COLORS[v.id]}}>{v.name}</span>
+                      </td>
+                      <td style={{color:'var(--text-muted)'}}>{fmt(row.expected)}</td>
+                      <td style={{color:'var(--text-muted)'}}>{fmt(row.received)}</td>
+                      <td className={d==null?'':Math.abs(d)<=0.01?'diff-pos':'diff-neg'}>
+                        {d==null ? '—' : Math.abs(d)<=0.01 ? '✓' : `${d>=0?'+':''}${fmt(d)}`}
+                      </td>
+                      <td></td><td></td>
+                    </tr>
+                  );
+                }),
+              ];
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── Yearly View ───────────────────────────────────────────────────────────────
+function YearlyView({ commissions }) {
+  const [expanded, setExpanded] = useState({});
+  const toggle = y => setExpanded(p => ({...p, [y]: !p[y]}));
+
+  const years = useMemo(() => {
+    const map = {};
+    commissions.forEach(r => {
+      const y = r.month.slice(0,4);
+      if (!map[y]) map[y] = {};
+      if (!map[y][r.vendor]) map[y][r.vendor] = { expected:0, received:0, months:0 };
+      map[y][r.vendor].expected += parseFloat(r.expected||0);
+      map[y][r.vendor].received += parseFloat(r.received||0);
+      map[y][r.vendor].months++;
+    });
+    return Object.entries(map).sort(([a],[b]) => b.localeCompare(a));
+  }, [commissions]);
+
+  if (!years.length) return (
+    <div className="report-section">
+      <div className="section-title">Yearly Summary</div>
+      <div style={{color:'var(--text-muted)',fontSize:'0.85rem',padding:'20px 0'}}>No commission data found.</div>
+    </div>
+  );
+
+  return (
+    <div className="report-section">
+      <div className="section-title">Yearly Summary</div>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style={{width:32}}></th>
+              <th>Year</th>
+              <th>Total Expected</th>
+              <th>Total Received</th>
+              <th>Difference</th>
+              <th>Progress</th>
+              <th>Months</th>
+            </tr>
+          </thead>
+          <tbody>
+            {years.map(([year, byVendor]) => {
+              const exp  = Object.values(byVendor).reduce((s,v) => s+v.expected, 0);
+              const rec  = Object.values(byVendor).reduce((s,v) => s+v.received, 0);
+              const diff = rec - exp;
+              const p    = pct(rec, exp);
+              const numMonths = Math.max(...Object.values(byVendor).map(v => v.months));
+              const isExpanded = expanded[year];
+              return [
+                <tr key={year}>
+                  <td><button className="expand-btn" onClick={() => toggle(year)}>{isExpanded?'▼':'▶'}</button></td>
+                  <td style={{fontWeight:700,fontSize:'0.92rem'}}>{year}</td>
+                  <td>{fmt(exp)}</td>
+                  <td>{fmt(rec)}</td>
+                  <td className={Math.abs(diff)<=0.01?'diff-pos':diff<0?'diff-neg':''}>
+                    {Math.abs(diff)<=0.01 ? '✓' : `${diff>=0?'+':''}${fmt(diff)}`}
+                  </td>
+                  <td style={{minWidth:130}}>
+                    <ProgressBar value={p} color={Math.abs(diff)<=0.01?'var(--green)':'var(--yellow)'} />
+                    <span style={{fontSize:'0.7rem',color:'var(--text-muted)'}}>{p}% ({fmt(rec)} of {fmt(exp)})</span>
+                  </td>
+                  <td style={{color:'var(--text-muted)'}}>{numMonths}</td>
+                </tr>,
+                isExpanded && VENDORS.filter(v => byVendor[v.id]).map(v => {
+                  const row = byVendor[v.id];
+                  const d   = row.received - row.expected;
+                  return (
+                    <tr key={year+v.id} className="sub-row">
+                      <td></td>
+                      <td style={{paddingLeft:32}}>
+                        <span style={{color:VENDOR_COLORS[v.id],fontWeight:500}}>{v.name}</span>
+                      </td>
+                      <td style={{color:'var(--text-muted)'}}>{fmt(row.expected)}</td>
+                      <td style={{color:'var(--text-muted)'}}>{fmt(row.received)}</td>
+                      <td className={Math.abs(d)<=0.01?'diff-pos':'diff-neg'}>
+                        {Math.abs(d)<=0.01 ? '✓' : `${d>=0?'+':''}${fmt(d)}`}
+                      </td>
+                      <td style={{color:'var(--text-muted)',fontSize:'0.78rem'}}>{pct(row.received,row.expected)}%</td>
+                      <td style={{color:'var(--text-muted)'}}>{row.months} mo.</td>
+                    </tr>
+                  );
+                }),
+              ];
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── Check History ─────────────────────────────────────────────────────────────
+function CheckHistory({ checks }) {
+  if (!checks.length) return (
+    <div className="report-section">
+      <div className="section-title">Check History</div>
+      <div style={{color:'var(--text-muted)',fontSize:'0.85rem',padding:'20px 0'}}>No checks run yet. Use Run Now on a vendor to record a check.</div>
+    </div>
+  );
+  return (
+    <div className="report-section">
+      <div className="section-title">Check History</div>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Vendor</th><th>Period</th><th>Dashboard</th>
+              <th>Received</th><th>Diff</th><th>Status</th><th>Checked</th>
+            </tr>
+          </thead>
+          <tbody>
+            {checks.slice(0,60).map((c,i) => {
+              const d = c.difference;
+              return (
+                <tr key={i}>
+                  <td style={{color:VENDOR_COLORS[c.vendor]||'var(--text)',fontWeight:600}}>
+                    {c.vendor.charAt(0).toUpperCase()+c.vendor.slice(1)}
+                  </td>
+                  <td>{c.period}</td>
+                  <td>{fmt(c.dashboard_amount)}</td>
+                  <td>{c.received_amount==null ? <span style={{color:'var(--text-muted)'}}>—</span> : fmt(c.received_amount)}</td>
+                  <td className={d==null?'':Math.abs(d)<=0.01?'diff-pos':'diff-neg'}>
+                    {d==null?'—':Math.abs(d)<=0.01?'✓':`${d>=0?'+':''}${fmt(d)}`}
+                  </td>
+                  <td><span className={`status-pill ${c.status}`}>{c.status?.replace(/_/g,' ')}</span></td>
+                  <td style={{color:'var(--text-muted)',fontSize:'0.78rem'}}>{fmtD(c.checked_at)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── LoginModal ────────────────────────────────────────────────────────────────
+function LoginModal({ vendor, url, onSave, onCancel }) {
+  return (
+    <div className="modal-overlay">
+      <div className="modal">
+        <h2>🔑 Log in to {vendor.name}</h2>
+        <p>A Chrome window has opened. Complete login including any verification codes or MFA, then click <strong>Save Session</strong>.</p>
+        <div className="url-box">{url}</div>
+        <p style={{fontSize:'0.76rem',color:'var(--text-dim)'}}>Do not close the Chrome window until you save the session.</p>
+        <div className="modal-actions">
+          <button className="btn btn-secondary" onClick={onCancel}>Cancel</button>
+          <button className="btn btn-primary" onClick={onSave}>💾 Save Session</button>
         </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
-  // ── RunResultModal ──────────────────────────────────────────────────────────
-  function RunResultModal({ vendor, result, onClose }) {
-    const rows = result?.results?.[vendor.id]?.rows || [];
-    const error = result?.results?.[vendor.id]?.error;
-    return (
-      <div className="modal-overlay" onClick={onClose}>
-        <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
-          <h2>{vendor.name} — Check Result</h2>
-          {error && <div className="vc-error" style={{ marginBottom: 12 }}>{error}</div>}
-          {rows.length > 0 ? (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.83rem', marginBottom: 16 }}>
+// ── RunResultModal ────────────────────────────────────────────────────────────
+function RunResultModal({ vendor, result, onClose }) {
+  const rows  = result?.results?.[vendor.id]?.rows || [];
+  const error = result?.results?.[vendor.id]?.error || result?.error;
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e=>e.stopPropagation()} style={{maxWidth:500}}>
+        <h2>{vendor.name} — Check Result</h2>
+        {error && <div className="vc-error" style={{marginBottom:12}}>{error}</div>}
+        {rows.length > 0
+          ? <table style={{width:'100%',borderCollapse:'collapse',fontSize:'0.82rem',marginBottom:14}}>
               <thead>
-                <tr style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>
-                  <th style={{ padding: '6px 8px', textAlign: 'left' }}>Period</th>
-                  <th style={{ padding: '6px 8px', textAlign: 'right' }}>Dashboard</th>
-                  <th style={{ padding: '6px 8px', textAlign: 'right' }}>Received</th>
-                  <th style={{ padding: '6px 8px', textAlign: 'right' }}>Status</th>
+                <tr style={{color:'var(--text-muted)',borderBottom:'1px solid var(--border)'}}>
+                  <th style={{padding:'6px 8px',textAlign:'left'}}>Period</th>
+                  <th style={{padding:'6px 8px',textAlign:'right'}}>Dashboard</th>
+                  <th style={{padding:'6px 8px',textAlign:'right'}}>Received</th>
+                  <th style={{padding:'6px 8px',textAlign:'right'}}>Status</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map(r => (
-                  <tr key={r.period} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ padding: '6px 8px' }}>{r.period}</td>
-                    <td style={{ padding: '6px 8px', textAlign: 'right' }}>{fmt(r.dashboard_amount)}</td>
-                    <td style={{ padding: '6px 8px', textAlign: 'right' }}>{r.received_amount == null ? '—' : fmt(r.received_amount)}</td>
-                    <td style={{ padding: '6px 8px', textAlign: 'right' }}>
+                  <tr key={r.period} style={{borderBottom:'1px solid var(--border)'}}>
+                    <td style={{padding:'6px 8px'}}>{r.period}</td>
+                    <td style={{padding:'6px 8px',textAlign:'right'}}>{fmt(r.dashboard_amount)}</td>
+                    <td style={{padding:'6px 8px',textAlign:'right'}}>{r.received_amount==null?'—':fmt(r.received_amount)}</td>
+                    <td style={{padding:'6px 8px',textAlign:'right'}}>
                       <span className={`status-pill ${r.status}`}>
-                        {r.status === 'matched' ? '✓ Matched' : r.status === 'discrepancy' ? '⚠ Discrepancy' : 'Unable to Verify'}
+                        {r.status==='matched'?'✓ Matched':r.status==='discrepancy'?'⚠ Discrepancy':'Unable to Verify'}
                       </span>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          ) : (
-            <p>No data returned.</p>
-          )}
-          <div className="modal-actions">
-            <button className="btn btn-primary" onClick={onClose}>Close</button>
-          </div>
-        </div>
+          : !error && <p style={{marginBottom:14,color:'var(--text-muted)'}}>No data returned from this vendor.</p>
+        }
+        <div className="modal-actions"><button className="btn btn-primary" onClick={onClose}>Close</button></div>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
-  // ── App ─────────────────────────────────────────────────────────────────────
-  function App() {
-    const [commissions,   setCommissions] = useState([]);
-    const [checks,        setChecks]      = useState([]);
-    const [sessions,      setSessions]    = useState({});
-    const [localOnline,   setLocalOnline] = useState(null);
-    const [running,       setRunning]     = useState(null);   // vendor id or null
-    const [loginVendor,   setLoginVendor] = useState(null);   // vendor id with open browser
-    const [loginUrl,      setLoginUrl]    = useState('');
-    const [runResult,     setRunResult]   = useState(null);   // {vendor, result}
-    const [gmailLoading,  setGmailLoading]= useState(false);
+// ── App ───────────────────────────────────────────────────────────────────────
+function App() {
+  const [tab,          setTab]         = useState('vendors');
+  const [commissions,  setCommissions] = useState([]);
+  const [checks,       setChecks]      = useState([]);
+  const [sessions,     setSessions]    = useState({});
+  const [localOnline,  setLocalOnline] = useState(null);
+  const [running,      setRunning]     = useState(null);
+  const [loginVendor,  setLoginVendor] = useState(null);
+  const [loginUrl,     setLoginUrl]    = useState('');
+  const [runResult,    setRunResult]   = useState(null);
 
-    const sbFetch = useCallback(async (path) => {
-      const r = await fetch(`${SB_URL}${path}`, { headers: SB_HEAD });
-      return r.ok ? r.json() : [];
-    }, []);
+  const sbFetch = useCallback(async path => {
+    const r = await fetch(`${SB_URL}${path}`, { headers: SB_HEAD });
+    return r.ok ? r.json() : [];
+  }, []);
 
-    const loadAll = useCallback(async () => {
-      const [comm, chk] = await Promise.all([
-        sbFetch('/rest/v1/commissions?select=vendor,month,expected,received&order=month.desc&limit=200'),
-        sbFetch('/rest/v1/commission_checks?select=vendor,period,dashboard_amount,received_amount,difference,status,reason,checked_at&order=checked_at.desc&limit=100'),
-      ]);
-      setCommissions(comm);
-      setChecks(chk);
-    }, [sbFetch]);
+  const loadAll = useCallback(async () => {
+    const [comm, chk] = await Promise.all([
+      sbFetch('/rest/v1/commissions?select=vendor,month,expected,received&order=month.desc&limit=500'),
+      sbFetch('/rest/v1/commission_checks?select=vendor,period,dashboard_amount,received_amount,difference,status,reason,checked_at&order=checked_at.desc&limit=100'),
+    ]);
+    setCommissions(Array.isArray(comm) ? comm : []);
+    setChecks(Array.isArray(chk) ? chk : []);
+  }, [sbFetch]);
 
-    const loadSessions = useCallback(async () => {
-      try {
-        const r = await fetch(`${LOCAL}/session`);
-        if (r.ok) setSessions(await r.json());
-      } catch (_) {}
-    }, []);
+  const loadSessions = useCallback(async () => {
+    try { const r = await fetch(`${LOCAL}/session`); if (r.ok) setSessions(await r.json()); } catch(_){}
+  }, []);
 
-    const checkLocal = useCallback(async () => {
+  useEffect(() => {
+    loadAll();
+    (async () => {
       try {
         const r = await fetch(`${LOCAL}/ping`);
         setLocalOnline(r.ok);
         if (r.ok) loadSessions();
-      } catch (_) {
-        setLocalOnline(false);
-      }
-    }, [loadSessions]);
+      } catch(_) { setLocalOnline(false); }
+    })();
+    const iv = setInterval(loadAll, 60000);
+    return () => clearInterval(iv);
+  }, [loadAll, loadSessions]);
 
-    useEffect(() => {
-      loadAll();
-      checkLocal();
-    }, [loadAll, checkLocal]);
+  const lastCheckByVendor = useMemo(() => {
+    const m = {};
+    checks.forEach(c => { if (!m[c.vendor]) m[c.vendor] = c; });
+    return m;
+  }, [checks]);
 
-    // Latest check per vendor
-    const lastCheckByVendor = {};
-    checks.forEach(c => {
-      if (!lastCheckByVendor[c.vendor]) lastCheckByVendor[c.vendor] = c;
+  const { totalExp, totalRec, discVendors } = useMemo(() => {
+    let e = 0, r = 0;
+    const disc = [];
+    VENDORS.forEach(v => {
+      const latest = commissions.filter(c => c.vendor===v.id && c.month>='2026-01').sort((a,b)=>b.month.localeCompare(a.month))[0];
+      if (latest) { e += parseFloat(latest.expected||0); r += parseFloat(latest.received||0); }
+      if (lastCheckByVendor[v.id]?.status === 'discrepancy') disc.push(v.name);
     });
+    return { totalExp:e, totalRec:r, discVendors:disc };
+  }, [commissions, lastCheckByVendor]);
 
-    // Summary stats
-    const allVendorIds = VENDORS.map(v => v.id);
-    const totals = allVendorIds.reduce((acc, vid) => {
-      commissions.filter(r => r.vendor === vid && r.month >= '2026-01').forEach(r => {
-        const latest = commissions.filter(c => c.vendor === vid && c.month >= '2026-01')
-          .sort((a, b) => b.month.localeCompare(a.month))[0];
-        if (latest && r === latest) {
-          acc.expected += parseFloat(r.expected || 0);
-          acc.received += parseFloat(r.received || 0);
-        }
-      });
-      return acc;
-    }, { expected: 0, received: 0 });
-    const discrepancies = VENDORS.filter(v => {
-      const lc = lastCheckByVendor[v.id];
-      return lc?.status === 'discrepancy';
-    });
+  const handleRun = async vendor => {
+    if (!localOnline) return alert('Local scraper is offline.\nStart it with: python3 local_api.py');
+    setRunning(vendor.id);
+    try {
+      const r = await fetch(`${LOCAL}/run/${vendor.id}`, { method:'POST' });
+      const data = await r.json();
+      setRunResult({ vendor, result: data });
+      await loadAll();
+    } catch(e) { alert(`Error: ${e.message}`); }
+    finally { setRunning(null); }
+  };
 
-    const handleRun = async (vendor) => {
-      if (!localOnline) return alert('Local scraper is not running. Start it with: python3 local_api.py');
-      setRunning(vendor.id);
-      try {
-        const r = await fetch(`${LOCAL}/run/${vendor.id}`, { method: 'POST' });
-        const data = await r.json();
-        setRunResult({ vendor, result: data });
-        await loadAll();
-        await loadSessions();
-      } catch (e) {
-        alert(`Error: ${e.message}`);
-      } finally {
-        setRunning(null);
-      }
-    };
+  const handleLogin = async vendor => {
+    if (!localOnline) return alert('Local scraper is offline.\nStart it with: python3 local_api.py');
+    try {
+      const r = await fetch(`${LOCAL}/login/${vendor.id}`, { method:'POST' });
+      const d = await r.json();
+      if (!d.ok) return alert(`Could not open browser: ${d.error}`);
+      setLoginVendor(vendor.id); setLoginUrl(d.url);
+    } catch(e) { alert(`Error: ${e.message}`); }
+  };
 
-    const handleLogin = async (vendor) => {
-      if (!localOnline) return alert('Local scraper is not running. Start it with: python3 local_api.py');
-      try {
-        const r = await fetch(`${LOCAL}/login/${vendor.id}`, { method: 'POST' });
-        const data = await r.json();
-        if (!data.ok) return alert(`Could not open browser: ${data.error}`);
-        setLoginVendor(vendor.id);
-        setLoginUrl(data.url);
-      } catch (e) {
-        alert(`Error: ${e.message}`);
-      }
-    };
+  const handleSaveSession = async () => {
+    try {
+      const r = await fetch(`${LOCAL}/login/${loginVendor}/save`, { method:'POST' });
+      const d = await r.json();
+      if (!d.ok) return alert(`Could not save session: ${d.error}`);
+      setLoginVendor(null); setLoginUrl('');
+      await loadSessions();
+    } catch(e) { alert(`Error: ${e.message}`); }
+  };
 
-    const handleSaveSession = async () => {
-      try {
-        const r = await fetch(`${LOCAL}/login/${loginVendor}/save`, { method: 'POST' });
-        const data = await r.json();
-        if (!data.ok) return alert(`Could not save session: ${data.error}`);
-        setLoginVendor(null);
-        setLoginUrl('');
-        await loadSessions();
-        alert(`Session saved for ${loginVendor}. You can now click Run Now.`);
-      } catch (e) {
-        alert(`Error: ${e.message}`);
-      }
-    };
+  const handleSyncGmail = () => {
+    window.open(SYNC_URL, '_blank');
+    setTimeout(async () => { await loadAll(); }, 8000);
+  };
 
-    const handleCancelLogin = async () => {
-      setLoginVendor(null);
-      setLoginUrl('');
-    };
+  const TABS = [
+    { id:'vendors', label:'Vendors' },
+    { id:'monthly', label:'Monthly' },
+    { id:'yearly',  label:'Yearly' },
+    { id:'history', label:'Check History' },
+  ];
 
-    const handleSyncGmail = () => {
-      setGmailLoading(true);
-      window.open(SYNC_URL, '_blank');
-      setTimeout(async () => {
-        await loadAll();
-        setGmailLoading(false);
-      }, 8000);
-    };
-
-    return (
-      <div className="app">
-        {/* Header */}
-        <div className="header">
-          <h1>Commission <span>Tracker</span></h1>
-          <div className="header-meta">
-            {localOnline === false && <span style={{ color: 'var(--yellow)' }}>⚠ Local scraper offline</span>}
-            {localOnline === true  && <span style={{ color: 'var(--green)' }}>● Scraper online</span>}
-          </div>
+  return (
+    <div className="app">
+      <div className="header">
+        <h1>Commission <span>Tracker</span></h1>
+        <div className="scraper-status">
+          <span className={`dot ${localOnline===true?'green':localOnline===false?'red':'gray'}`} />
+          {localOnline===true ? 'Scraper online' : localOnline===false ? 'Scraper offline' : '…'}
+          <span style={{color:'var(--text-dim)'}}>·</span>
+          <button className="btn btn-secondary" style={{padding:'4px 10px',fontSize:'0.74rem'}} onClick={loadAll}>↻ Refresh</button>
         </div>
+      </div>
 
-        {/* Offline banner */}
-        {localOnline === false && (
-          <div className="offline-banner">
-            ⚠️ The local scraper is not running. Start it to enable Run Now and Login buttons:
-            <code style={{ background: 'var(--surface3)', padding: '2px 8px', borderRadius: 4, marginLeft: 4 }}>
-              python3 /path/to/commission-tracker/local_api.py
-            </code>
-          </div>
-        )}
+      {localOnline===false && (
+        <div className="offline-banner">
+          ⚠ Scraper offline — Login and Run Now are disabled.
+          Start it: <code style={{background:'var(--surface3)',padding:'1px 7px',borderRadius:4}}>python3 local_api.py</code>
+        </div>
+      )}
+      {discVendors.length > 0 && (
+        <div className="alert">
+          ⚠️ <strong>{discVendors.length} discrepanc{discVendors.length===1?'y':'ies'}:</strong>&nbsp;{discVendors.join(', ')}
+        </div>
+      )}
 
-        {/* Discrepancy alert */}
-        {discrepancies.length > 0 && (
-          <div className="alert">
-            ⚠️ <strong>{discrepancies.length} discrepanc{discrepancies.length === 1 ? 'y' : 'ies'} found:</strong>{' '}
-            {discrepancies.map(v => v.name).join(', ')}
-          </div>
-        )}
+      <div className="tabs">
+        {TABS.map(t => <button key={t.id} className={`tab-btn${tab===t.id?' active':''}`} onClick={() => setTab(t.id)}>{t.label}</button>)}
+      </div>
 
-        {/* Summary */}
+      {tab === 'vendors' && <>
         <div className="summary">
-          <div className="stat">
-            <div className="label">Latest Expected</div>
-            <div className="value">{fmt(totals.expected)}</div>
-          </div>
-          <div className="stat">
-            <div className="label">Latest Received</div>
-            <div className="value green">{fmt(totals.received)}</div>
-          </div>
-          <div className="stat">
-            <div className="label">Discrepancies</div>
-            <div className={`value ${discrepancies.length > 0 ? 'red' : 'green'}`}>{discrepancies.length}</div>
-          </div>
-          <div className="stat">
-            <div className="label">Vendors Checked</div>
-            <div className="value">{Object.keys(lastCheckByVendor).length} / {VENDORS.length}</div>
-          </div>
+          <div className="stat"><div className="label">Expected (Latest Mo.)</div><div className="value">{fmt(totalExp)}</div></div>
+          <div className="stat"><div className="label">Received (Latest Mo.)</div><div className="value green">{fmt(totalRec)}</div></div>
+          <div className="stat"><div className="label">Discrepancies</div><div className={`value ${discVendors.length>0?'red':'green'}`}>{discVendors.length}</div></div>
+          <div className="stat"><div className="label">Checked</div><div className="value">{Object.keys(lastCheckByVendor).length} / {VENDORS.length}</div></div>
         </div>
-
-        {/* Vendor grid */}
         <div className="vendor-grid">
           {VENDORS.map(vendor => (
             <VendorCard
               key={vendor.id}
               vendor={vendor}
-              commissions={commissions}
+              rows={commissions.filter(r => r.vendor===vendor.id)}
               session={sessions[vendor.id]}
               lastCheck={lastCheckByVendor[vendor.id]}
-              running={running === vendor.id}
-              loginOpen={loginVendor === vendor.id}
+              running={running===vendor.id}
+              loginOpen={loginVendor===vendor.id}
               onRun={() => handleRun(vendor)}
               onLogin={() => handleLogin(vendor)}
               onSaveSession={handleSaveSession}
@@ -541,70 +697,32 @@
             />
           ))}
         </div>
+      </>}
 
-        {/* Check history */}
-        {checks.length > 0 && (
-          <div>
-            <div className="section-title">Check History</div>
-            <div className="history-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Vendor</th>
-                    <th>Period</th>
-                    <th>Dashboard</th>
-                    <th>Received</th>
-                    <th>Difference</th>
-                    <th>Status</th>
-                    <th>Checked</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {checks.slice(0, 50).map((c, i) => {
-                    const diff = c.difference;
-                    return (
-                      <tr key={i}>
-                        <td style={{ color: VENDOR_COLORS[c.vendor] || 'var(--text)', fontWeight: 600 }}>
-                          {c.vendor.charAt(0).toUpperCase() + c.vendor.slice(1)}
-                        </td>
-                        <td>{c.period}</td>
-                        <td>{fmt(c.dashboard_amount)}</td>
-                        <td>{c.received_amount == null ? <span style={{ color: 'var(--text-muted)' }}>—</span> : fmt(c.received_amount)}</td>
-                        <td style={{ color: diff == null ? 'var(--text-muted)' : Math.abs(diff) <= 0.01 ? 'var(--green)' : 'var(--red)' }}>
-                          {diff == null ? '—' : Math.abs(diff) <= 0.01 ? '✓' : `${diff >= 0 ? '+' : ''}${fmt(diff)}`}
-                        </td>
-                        <td><span className={`status-pill ${c.status}`}>{c.status?.replace('_', ' ')}</span></td>
-                        <td style={{ color: 'var(--text-muted)' }}>{fmtDate(c.checked_at)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+      {tab === 'monthly' && <MonthlyView commissions={commissions} />}
+      {tab === 'yearly'  && <YearlyView  commissions={commissions} />}
+      {tab === 'history' && <CheckHistory checks={checks} />}
 
-        {/* Modals */}
-        {loginVendor && (
-          <LoginModal
-            vendor={VENDORS.find(v => v.id === loginVendor)}
-            loginUrl={loginUrl}
-            onSave={handleSaveSession}
-            onCancel={handleCancelLogin}
-          />
-        )}
-        {runResult && (
-          <RunResultModal
-            vendor={runResult.vendor}
-            result={runResult.result}
-            onClose={() => setRunResult(null)}
-          />
-        )}
-      </div>
-    );
-  }
+      {loginVendor && (
+        <LoginModal
+          vendor={VENDORS.find(v => v.id===loginVendor)}
+          url={loginUrl}
+          onSave={handleSaveSession}
+          onCancel={() => { setLoginVendor(null); setLoginUrl(''); }}
+        />
+      )}
+      {runResult && (
+        <RunResultModal
+          vendor={runResult.vendor}
+          result={runResult.result}
+          onClose={() => setRunResult(null)}
+        />
+      )}
+    </div>
+  );
+}
 
-  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 </script>
 </body>
 </html>
